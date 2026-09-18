@@ -1,0 +1,46 @@
+# 后端服务发布流水线（占位版）：打 v* tag 触发，构建可执行 jar 并挂到 GitHub Release。
+# 发布门禁已由 CI（构建/集成回归/P3C/gitleaks）在 dev 与 master 上执行，此处不重复跑集成测试。
+# 后续如需产出 Docker 镜像或部署包，在本工作流上扩展构建步骤即可。
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: build & publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Build jars
+        run: mvn -B -ntp -DskipTests package
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist
+          find . -path '*/target/*.jar' ! -name 'original-*.jar' -exec cp {} dist/ \;
+          ls -l dist
+
+      # 手动运行（无 tag）只做构建验证，不创建 Release
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          generate_release_notes: true
+          files: dist/*.jar
