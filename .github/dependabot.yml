@@ -1,0 +1,8 @@
+# GitHub Actions 依赖自动更新：每周检查一次，有新版本时开 PR（开在默认分支）
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
