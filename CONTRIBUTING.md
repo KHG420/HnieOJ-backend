@@ -1,4 +1,4 @@
-﻿# Contributing Guide
+# Contributing Guide
 
 感谢你为 HnieOJ-backend 做贡献！
 
@@ -59,17 +59,24 @@ Commit Message 使用 Conventional Commits，例如：
 - `fix(auth): handle empty role cache`
 - `docs: update judge deployment guide`
 
-## 7. Pull Request 要求
+## 7. 分支策略与 Pull Request 要求
+
+分支模型为 `master`（发布）+ `dev`（集成）：请一律基于 `dev` 分支提交 PR，经 CI 门禁与维护者审核后合入 `dev`；积累稳定后由维护者合并 `dev` → `master` 并打版本 tag 发布。
 
 提交 PR 前请自检：
 
 - [ ] 改动范围明确，且符合模块边界
-- [ ] 必要的单元测试/编译验证已通过
-- [ ] 不包含敏感信息或本地环境私有配置
-- [ ] 如改动接口，已同步更新 `.idea/API文档.md`
-- [ ] 如改动较大，已补充 `.idea/codex.md` 工作记录
+- [ ] 本地 `mvn -B -ntp package` 编译与单元测试通过
+- [ ] 不包含敏感信息或本地环境私有配置（CI 会运行 gitleaks 全历史扫描）
+- [ ] 接口与配置说明沿用 README 与 `deploy/` 文档维护
+
+CI 门禁（全部通过才可合并）：
+
+- 构建 + 单元测试（ubuntu / windows 矩阵，JDK 17）
+- MySQL8 + Redis7.4 服务容器集成回归（`-Dit.enabled=true`）
+- 阿里巴巴 P3C 规约静态检查（存量违规见 `.ci/pmd-baseline-exclude.txt` 基线豁免，新增代码不豁免）
+- gitleaks 密钥扫描；PR 另有依赖成分审查
 
 ---
 
 再次感谢你的贡献！
-
