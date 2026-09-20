@@ -5,6 +5,8 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.hnieacm.common.dto.PageVo;
 import com.hnieacm.common.result.Result;
 import com.hnieacm.user.dto.ChangeCurrentPasswordRequest;
+import com.hnieacm.user.dto.UpdatePasswordRequest;
+import com.hnieacm.user.dto.UpdateUserProfileRequest;
 import com.hnieacm.user.dto.UserProfileChangeApplyRequest;
 import com.hnieacm.user.service.UserManageService;
 import com.hnieacm.user.service.UserProfileChangeService;
@@ -48,7 +50,27 @@ public class UserProfileController {
     @SaCheckLogin
     @GetMapping("/profile")
     public Result<UserProfileVo> getProfile() {
-        return Result.success(userProfileService.getCurrentUserProfile());
+        // hnieoj-user 未注册 SaInterceptor，@SaCheckLogin 不会生效；显式取服务端登录态 uid。
+        String uid = StpUtil.getLoginIdAsString();
+        return Result.success(userProfileService.getCurrentUserProfile(uid));
+    }
+
+    @Operation(summary = "本人自助修改资料")
+    @SaCheckLogin
+    @PutMapping("/profile")
+    public Result<Void> updateProfile(@Valid @RequestBody UpdateUserProfileRequest request) {
+        String uid = StpUtil.getLoginIdAsString();
+        userProfileService.updateCurrentUserProfile(uid, request);
+        return Result.success("修改成功", null);
+    }
+
+    @Operation(summary = "本人自助修改密码")
+    @SaCheckLogin
+    @PutMapping("/password")
+    public Result<Void> updatePassword(@Valid @RequestBody UpdatePasswordRequest request) {
+        String uid = StpUtil.getLoginIdAsString();
+        userProfileService.updatePassword(uid, request);
+        return Result.success("密码修改成功", null);
     }
 
     @Operation(summary = "修改当前用户密码")

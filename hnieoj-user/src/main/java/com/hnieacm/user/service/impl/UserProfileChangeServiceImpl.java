@@ -100,7 +100,14 @@ public class UserProfileChangeServiceImpl implements UserProfileChangeService {
     @Transactional(rollbackFor = Exception.class)
     public void approve(String uid) {
         UserProfileChangeApply apply = getPendingApply(uid);
-        UserInfo user = userInfoManager.getUserByUid(apply.getUid());
+        // 通用资料申请与身份资料申请（UserProfileChange）都会写同一 user_info 行，
+        // 审批前必须在事务内锁定用户行，避免两套申请并发审批相互覆盖其它资料/密码。
+        UserInfo user = userInfoMapper.selectOne(
+                new LambdaQueryWrapper<UserInfo>().eq(UserInfo::getUid, apply.getUid()).last("FOR UPDATE")
+        );
+        if (user == null) {
+            throw new BizException(ResultCode.USER_NOT_FOUND, "用户不存在");
+        }
         applyToUser(user, apply);
         userInfoMapper.updateById(user);
         apply.setStatus(UserProfileChangeStatus.APPROVED);
