@@ -27,7 +27,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -55,11 +54,26 @@ import org.springframework.web.multipart.MultipartFile;
 @SaCheckPermission(PermissionConstant.USER_MANAGE)
 public class UserManageController {
 
+    private static final String IMPORT_TEMPLATE_FILENAME = "user-import-template.xlsx";
+
+    private static final MediaType IMPORT_TEMPLATE_MEDIA_TYPE =
+            MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+
     private final UserManageService userManageService;
     private final UserImportService userImportService;
     private final UserIpRestrictionService userIpRestrictionService;
     private final UserSubmissionTransferService userSubmissionTransferService;
     private final UserProfileChangeService userProfileChangeService;
+
+    @Operation(summary = "下载用户导入模板")
+    @GetMapping("/import/template")
+    public ResponseEntity<byte[]> downloadImportTemplate() {
+        return ResponseEntity.ok()
+                .contentType(IMPORT_TEMPLATE_MEDIA_TYPE)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + IMPORT_TEMPLATE_FILENAME + "\"")
+                .body(userImportService.buildTemplate());
+    }
 
     @Operation(summary = "创建用户")
     @PostMapping
@@ -113,17 +127,6 @@ public class UserManageController {
     @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<UserImportResultVo> importUsers(@RequestParam("file") MultipartFile file) {
         return Result.success("导入完成", userImportService.importUsers(file));
-    }
-
-    @Operation(summary = "下载用户导入模板")
-    @GetMapping("/import/template")
-    public ResponseEntity<byte[]> downloadImportTemplate() {
-        byte[] content = userImportService.buildTemplate();
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.attachment().filename("hnieoj-user-import-template.xlsx").build().toString())
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(content);
     }
 
     @Operation(summary = "设置用户 IP 限制")
