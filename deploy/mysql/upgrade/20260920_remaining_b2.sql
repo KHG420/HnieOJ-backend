@@ -8,7 +8,8 @@
 --   * 使用 CREATE TABLE IF NOT EXISTS，重跑安全；已存在的表不会被重建。
 --   * 不使用任何破坏性 DDL，不需要重复数据预检。
 --   * 存量旧库顺序：20260919_redis_gateway.sql -> 20260919_secure_node.sql -> 20260920_remaining_b1.sql -> 本脚本。
---   * 全新安装（fresh）：当前完整初始化 hnieoj_多数据库.sql 已内含 20260919 Redis Gateway 与安全节点 schema，只需 完整初始化 -> 20260920_remaining_b1.sql -> 本脚本，无需重复执行这两个 20260919 脚本（fresh 上游初始化后同样必须执行 B1/B2）。
+--   * 全新安装（fresh）：hnieoj_多数据库.sql 已内含本脚本全部三张表（user_notice / user_message /
+--     user_profile_change），执行完整初始化后无需再跑本脚本。
 --   * 本脚本不自动在生产执行；请在测试/预发库验证后由运维手动执行。
 -- ============================================================================
 

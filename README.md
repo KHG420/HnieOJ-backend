@@ -95,7 +95,9 @@ HnieOJ-backend/
 
 ### 配置数据库
 
-在 `deploy/mysql/hnieoj_多数据库.sql` 提供了 mysql 的初始化 sql 脚本，可直接构建表结构
+在 `deploy/mysql/hnieoj_多数据库.sql` 提供了 mysql 的初始化 sql 脚本，可直接构建完整表结构（含公告分类、站内通知/消息、身份资料审核等全部首版功能所需的表、列与索引，无需再补跑增量脚本）
+
+`deploy/mysql/upgrade/` 下的增量脚本仅供已有开发库升级使用；全新安装不要使用增量脚本覆盖
 
 在 `deploy/mysql/添加测试数据.sql` 提供了添加测试的 sql 脚本，可用于开发测试
 

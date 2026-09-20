@@ -213,11 +213,14 @@ bash deploy/scripts/deploy-dev.sh gojudge-down
 mysqldump -uroot -p --single-transaction <db> > backup_before_node_v1.sql
 mysql -uroot -p < deploy/mysql/upgrade/20260919_redis_gateway.sql
 mysql -uroot -p < deploy/mysql/upgrade/20260919_secure_node.sql
+mysql -uroot -p < deploy/mysql/upgrade/20260920_remaining_b1.sql
+mysql -uroot -p < deploy/mysql/upgrade/20260920_remaining_b2.sql
 ```
 
-- 顺序固定为先 `20260919_redis_gateway.sql`，再 `20260919_secure_node.sql`，不可颠倒。
-- fresh 安装使用完整初始化脚本 `deploy/mysql/hnieoj_多数据库.sql`，其结果与按序执行这两个增量脚本后一致；
-  已有库不得用完整脚本覆盖。
+- 顺序固定为 `20260919_redis_gateway.sql` → `20260919_secure_node.sql` → `20260920_remaining_b1.sql` → `20260920_remaining_b2.sql`，不可颠倒。
+- fresh 安装只执行完整初始化脚本 `deploy/mysql/hnieoj_多数据库.sql`：该脚本已内含上述全部增量
+  （含公告 category 列、remote_judge_account 唯一键、problem_tag 索引、user_notice / user_message /
+  user_profile_change 三表），执行后无需再跑任何增量脚本；已有库不得用完整脚本覆盖。
 - 迁移后确认 outbox / execution 表结构与节点身份相关列/索引齐全，再启动新版本后端。
 
 ### 9.2 Redis 持久化与恢复

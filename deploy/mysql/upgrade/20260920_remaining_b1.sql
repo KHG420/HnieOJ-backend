@@ -8,7 +8,8 @@
 --     条件 SIGNAL；该过程只在预检期间存在，预检通过后立即删除，失败残留也会在下一次重跑时先清理。
 --   * 重复数据预检在任意本批 DDL 之前执行：发现重复即以 SQLSTATE 45000 中止，不删除/合并任何数据。
 --   * 存量旧库顺序：20260919_redis_gateway.sql -> 20260919_secure_node.sql -> 本脚本 -> 20260920_remaining_b2.sql。
---   * 全新安装（fresh）：当前完整初始化 hnieoj_多数据库.sql 已内含 20260919 Redis Gateway 与安全节点 schema，只需 完整初始化 -> 本脚本 -> 20260920_remaining_b2.sql，无需重复执行这两个 20260919 脚本（fresh 上游初始化后同样必须执行 B1/B2）。
+--   * 全新安装（fresh）：hnieoj_多数据库.sql 已内含本脚本全部 schema（announcement.category、
+--     remote_judge_account.uk_oj_username、problem_tag.idx_tid），执行完整初始化后无需再跑本脚本。
 --   * 本脚本不自动在生产执行；请在测试/预发库验证后由运维手动执行。
 -- ============================================================================
 
