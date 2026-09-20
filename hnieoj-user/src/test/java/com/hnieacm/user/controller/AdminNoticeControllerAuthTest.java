@@ -31,8 +31,8 @@ import static org.mockito.Mockito.when;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/20
- * @Description: 管理通知控制器显式鉴权回归：hnieoj-user 未注册 SaInterceptor，
- * 控制器须直接以 StpUtil 拒绝匿名(401)/普通用户(403)，且管理员操作者 uid 取自服务端登录态。
+ * @Description: 管理通知控制器显式鉴权回归：控制器须直接以 StpUtil 拒绝匿名(401)/普通用户(403)，
+ * 且管理员操作者 uid 取自服务端登录态。
  */
 class AdminNoticeControllerAuthTest {
 

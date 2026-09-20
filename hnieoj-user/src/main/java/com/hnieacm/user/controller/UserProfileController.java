@@ -50,7 +50,7 @@ public class UserProfileController {
     @SaCheckLogin
     @GetMapping("/profile")
     public Result<UserProfileVo> getProfile() {
-        // hnieoj-user 未注册 SaInterceptor，@SaCheckLogin 不会生效；显式取服务端登录态 uid。
+        // 取服务端登录态 uid，不信任客户端传入的身份标识。
         String uid = StpUtil.getLoginIdAsString();
         return Result.success(userProfileService.getCurrentUserProfile(uid));
     }

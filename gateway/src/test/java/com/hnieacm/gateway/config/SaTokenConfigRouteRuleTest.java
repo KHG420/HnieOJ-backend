@@ -265,6 +265,13 @@ class SaTokenConfigRouteRuleTest {
         Invocation lowPermissionDelete = invokeWithToken(HttpMethod.DELETE, "/api/admin/tags/1", tokenFor("admin"));
         assertThat(lowPermissionDelete.downstream()).isFalse();
         assertThat(businessCode(lowPermissionDelete.body())).isEqualTo(403);
+
+        // 根路径 PUT（保存分组配置）：网关层只做 ADMIN/ROOT 角色校验（学生 403），
+        // problem:update 细粒度校验由 hnieoj-problem 服务内 @SaCheckPermission 执行（不在网关断言）。
+        Invocation studentSaveConfig = invokeWithToken(HttpMethod.PUT, "/api/admin/tags", tokenFor("student"));
+        assertThat(studentSaveConfig.downstream()).isFalse();
+        assertThat(businessCode(studentSaveConfig.body())).isEqualTo(403);
+        assertThat(invokeWithToken(HttpMethod.PUT, "/api/admin/tags", tokenFor("admin")).downstream()).isTrue();
     }
 
     @Test

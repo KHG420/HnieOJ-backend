@@ -23,8 +23,7 @@ import static org.mockito.Mockito.when;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/20
- * @Description: 推荐接口登录态回归：hnieoj-problem 未启用 SaInterceptor，
- * 控制器须显式拒绝匿名直连，同时放行已登录用户。
+ * @Description: 推荐接口登录态回归：控制器须拒绝匿名直连，同时放行已登录用户。
  */
 class ProblemControllerRecommendationAuthTest {
 

@@ -60,8 +60,7 @@ public class AdminProblemController {
     @SaCheckPermission(PermissionConstant.PROBLEM_UPDATE)
     @GetMapping("/{id}")
     public Result<AdminProblemDetailVo> detail(@PathVariable @Min(value = 1, message = "id 必须大于 0") Long id) {
-        // hnieoj-problem 未注册 SaInterceptor，注解不会生效；此处显式执行权限校验，
-        // 确保与网关精准规则一致地拒绝缺少 problem:update 的低权限管理员。
+        // 注解已由服务内 SaInterceptor 执行，此处显式校验作双保险。
         StpUtil.checkPermission(PermissionConstant.PROBLEM_UPDATE);
         return Result.success(adminProblemService.getProblemDetail(id));
     }

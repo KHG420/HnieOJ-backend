@@ -60,8 +60,7 @@ public class AdminAnnouncementController {
     @GetMapping("/{id}")
     public Result<AnnouncementDetailVo> detail(
             @PathVariable @Min(value = 1, message = "id 必须大于等于 1") Long id) {
-        // hnieoj-announcement 未注册 SaInterceptor，类上的 @SaCheckRole 注解不会生效；
-        // 此处显式执行角色校验，确保与网关 /api/admin/** 的 ADMIN/ROOT 规则一致。
+        // 类上的 @SaCheckRole 已由服务内 SaInterceptor 执行，此处显式校验作双保险。
         StpUtil.checkRoleOr(RoleConstant.ADMIN, RoleConstant.ROOT);
         return Result.success(announcementService.getAdminAnnouncementDetail(id));
     }

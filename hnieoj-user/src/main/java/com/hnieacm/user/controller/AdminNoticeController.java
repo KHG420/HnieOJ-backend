@@ -30,9 +30,8 @@ import org.springframework.web.bind.annotation.RestController;
  * @Date: 2026/09/20
  * @Description: 管理端定向通知接口。
  * <p>
- * hnieoj-user 未注册 SaInterceptor，本控制器在每个方法内显式调用
- * {@code StpUtil.checkRoleOr(ADMIN, ROOT)} 完成服务端 ADMIN/ROOT 校验，与网关 {@code /api/admin/**}
- * 规则形成双层防护。
+ * 本控制器在每个方法内显式调用 {@code StpUtil.checkRoleOr(ADMIN, ROOT)}，
+ * 与服务内 SaInterceptor 执行的注解校验、网关 {@code /api/admin/**} 规则形成多层防护。
  */
 @Tag(name = "定向通知管理（管理员）")
 @Validated

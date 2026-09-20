@@ -111,7 +111,7 @@ public class SaTokenConfig {
         // 角色校验
         SaRouter.match("/api/admin/**", r -> StpUtil.checkRoleOr(RoleConstant.ADMIN, RoleConstant.ROOT));
 
-        // 注册审核接口：hnieoj-user 未启用 SaInterceptor，网关按 Controller 已声明的 ADMIN/ROOT 补齐校验
+        // 注册审核接口：与 Controller 声明一致，要求 ADMIN/ROOT 角色
         SaRouter.match("/api/registrations", "/api/registrations/**")
                 .check(r -> StpUtil.checkRoleOr(RoleConstant.ADMIN, RoleConstant.ROOT));
 
@@ -120,9 +120,8 @@ public class SaTokenConfig {
         SaRouter.match("/api/problem/edit/**", r -> StpUtil.checkPermission(PermissionConstant.PROBLEM_UPDATE));
         SaRouter.match("/api/problem/delete/**", r -> StpUtil.checkPermission(PermissionConstant.PROBLEM_DELETE));
 
-        // 管理端题目详情读取：hnieoj-problem 未注册 SaInterceptor，Controller 注解不会生效。
-        // 网关按 Controller 声明的 PROBLEM_UPDATE 补齐校验，仅覆盖 GET /api/admin/problem/{id}
-        // （排除已有的 /api/admin/problem/list），不改动其它管理题目路由。
+        // 管理端题目详情读取：网关层对 GET /api/admin/problem/{id} 做一道 PROBLEM_UPDATE
+        // 校验（排除已有的 /api/admin/problem/list），服务内另有同名注解校验兜底。
         SaRouter.match("/api/admin/problem/*", r -> {
             if (SaRouter.isMatchCurrMethod(GET_METHOD)
                     && !SaRouter.isMatchCurrURI("/api/admin/problem/list")) {
@@ -130,9 +129,8 @@ public class SaTokenConfig {
             }
         });
 
-        // 标签管理写入：hnieoj-problem 未注册 SaInterceptor，Controller 注解不会生效。
-        // 网关按 Controller 声明的 PROBLEM_CREATE/UPDATE/DELETE 补齐校验，角色仍由 /api/admin/** 规则保证。
-        // 根路径 GET/PUT 保持原有分组配置权限，仅对 POST 与 /{id} 的 PUT/DELETE 追加细粒度校验。
+        // 标签管理写入：网关层对 POST 与 /{id} 的 PUT/DELETE 追加细粒度权限校验；
+        // 根路径 PUT（保存分组配置）由服务内 @SaCheckPermission(PROBLEM_UPDATE) 校验。
         SaRouter.match("/api/admin/tags", r -> {
             if (SaRouter.isMatchCurrMethod(POST_METHOD)) {
                 StpUtil.checkPermission(PermissionConstant.PROBLEM_CREATE);

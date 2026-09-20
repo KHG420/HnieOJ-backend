@@ -32,7 +32,7 @@ import java.util.List;
  * @Author: HaoRan_Lyu
  * @Date: 2026/06/09
  * @Description: 管理端标签接口：保留上游 GET/PUT 根路径分组配置契约，并合入标签增删改。
- * <p>hnieoj-problem 未注册 SaInterceptor，注解不会生效，因此每个写操作都显式执行角色+权限校验。</p>
+ * <p>写操作由服务内 SaInterceptor 执行方法上的权限注解；增删改另保留显式角色+权限校验作双保险。</p>
  */
 @Tag(name = "题目标签管理模块")
 @Validated

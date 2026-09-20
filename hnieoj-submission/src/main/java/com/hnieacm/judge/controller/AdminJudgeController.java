@@ -30,8 +30,8 @@ import java.util.List;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/03/01
- * @Description: 判题管理接口（管理员）。hnieoj-submission 未启用注解拦截，
- * 因此账号 CRUD 在控制器内显式执行 ADMIN/ROOT 角色校验，不依赖失效注解。
+ * @Description: 判题管理接口（管理员）。账号 CRUD 在控制器内显式执行 ADMIN/ROOT
+ * 角色校验，与类上的 @SaCheckRole 注解形成双层防护。
  */
 @Tag(name = "判题管理模块（管理员）")
 @Validated

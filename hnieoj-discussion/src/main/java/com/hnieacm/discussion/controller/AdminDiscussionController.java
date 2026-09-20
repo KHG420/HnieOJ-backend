@@ -55,8 +55,7 @@ public class AdminDiscussionController {
     @GetMapping("/{id}")
     public Result<AdminDiscussionDetailVo> detail(
             @PathVariable("id") @Min(value = 1, message = "id 必须大于等于 1") Long discussionId) {
-        // hnieoj-discussion 未注册 SaInterceptor，注解不会生效；此处显式执行角色校验，
-        // 确保与网关 /api/admin/** 的 ADMIN/ROOT 规则一致。
+        // 类上的 @SaCheckRole 已由服务内 SaInterceptor 执行，此处显式校验作双保险。
         StpUtil.checkRoleOr(RoleConstant.ADMIN, RoleConstant.ROOT);
         return Result.success(discussionService.getAdminDiscussionDetail(discussionId));
     }

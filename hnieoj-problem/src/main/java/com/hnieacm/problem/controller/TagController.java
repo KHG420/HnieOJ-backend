@@ -33,7 +33,7 @@ public class TagController {
     @SaCheckLogin
     @GetMapping
     public Result<List<TagVo>> list() {
-        // hnieoj-problem 未注册 SaInterceptor，注解不会生效；显式校验登录，与网关规则一致。
+        // 注解已由服务内 SaInterceptor 执行，此处显式校验登录作双保险。
         StpUtil.checkLogin();
         return Result.success(tagService.listTags());
     }

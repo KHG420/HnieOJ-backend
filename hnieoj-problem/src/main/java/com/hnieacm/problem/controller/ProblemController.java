@@ -75,8 +75,7 @@ public class ProblemController {
             @RequestParam(defaultValue = "5")
             @Min(value = 1, message = "limit 必须大于等于 1")
             @Max(value = 10, message = "limit 不能超过 10") int limit) {
-        // hnieoj-problem 未注册 SaInterceptor，@SaCheckLogin 注解不会生效；
-        // 推荐接口显式校验登录，避免匿名绕过网关后直连服务读取公开题推荐。
+        // 推荐只面向登录用户：与列表/详情一致走 @SaCheckLogin，此处显式校验作双保险。
         StpUtil.checkLogin();
         return Result.success(problemQueryService.getRecommendations(problemCode, limit));
     }

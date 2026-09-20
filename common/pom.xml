@@ -41,6 +41,12 @@
             <groupId>cn.dev33</groupId>
             <artifactId>sa-token-core</artifactId>
         </dependency>
+        <!-- SaInterceptor 所在包，optional：仅实际引入本自动配置的 MVC 服务需要 -->
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-spring-boot3-starter</artifactId>
+            <optional>true</optional>
+        </dependency>
 
         <!-- ==================== JSR-305 注解（消除 javax.annotation.meta.When 编译告警） ==================== -->
         <dependency>
