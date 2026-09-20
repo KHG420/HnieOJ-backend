@@ -198,6 +198,28 @@ bash deploy/scripts/deploy-dev.sh gojudge-up
 - [ ] 支持多判题机负载均衡（节点管理、健康检查、故障摘除）
 - [ ] 补齐判题链路集成测试与回归测试
 
+## 附录：文件链路新增 API（本次变更）
+
+以下为本次文件链路补齐新增的对外接口；原 117 项接口保持不变。
+
+| 方法 | 路径 | 鉴权 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/oj/images/{id}/{filename}` | 匿名（仅 GET 两段路径） | 读取题面图片，返回图片 MIME 与 `X-Content-Type-Options: nosniff`；拒绝路径分隔符、`..`、非图片后缀，不暴露 `testdata` |
+| GET | `/api/admin/achievements/{id}/file` | 管理员 / root | 按申请 ID 读取本地成就附件，返回 `application/octet-stream` 与安全的 `attachment` 文件名；外部 HTTP(S) 附件由前端直接打开，服务端不代理 |
+
+同时包含的边界变更：
+
+- 网关新增路由 `hnieoj-problem-images`（`/oj/images/**` -> `lb://hnieoj-problem`），仅默认相对 `imageUrlPrefix=/oj/images` 时生效；自定义外部 HTTP(S) 前缀仍由外部托管。
+- 网关为 `/api/registrations` 与 `/api/registrations/**` 补齐 ADMIN/ROOT 角色校验（原 Controller 注解在 user 服务未生效）。
+- `AchievementApplyAdminVo` 增加 `description`、`fileUrl`：本地存储的 `fileUrl` 输出受保护下载接口，外部 HTTP(S) 地址原样返回，不改变数据库持久值。
+
+### 本次整合补充字段与资料申请契约
+
+- 本次整合新增字段：`announcement.category`（`ANNOUNCEMENT`/`NEWS`）、远程评测账号 `password`/`status`/`maxConcurrency` 的可选更新语义（缺省保留原值，空白密码不覆盖）；标签目录与标签管理接口见 `docs/api-remaining.md`。
+- 本人资料修改保留三套契约：`PUT /api/user/profile`（白名单字段直接修改，字段缺省保留、空串清除可选项）；上游通用申请 `POST/GET /api/user/profile/change-requests`（可申请更多资料字段，审核入口在 `/api/users` 下的 `GET /api/users/changes` 与 `PUT /api/users/{uid}/changes/approve`、`PUT /api/users/{uid}/changes/reject`、`PUT /api/users/changes/batch-approve`）；本次新增身份申请 `POST/GET /api/user/profile-change-requests`（实名/学院/年级/班级变更申请，提交后由 ADMIN/ROOT 审核，原值与新值以 JSON 保存，审核入口 `GET /api/admin/profile-change-requests` 与 `POST /api/admin/profile-change-requests/{id}/approve`、`POST /api/admin/profile-change-requests/{id}/reject`）。三者并存，直接修改与身份申请之外的其它资料字段仍走上游通用申请。完整字段与错误码见 `docs/api-remaining.md`。
+- 改密两个路径均保留：新路径 `PUT /api/user/password` 请求体为 `oldPassword`/`newPassword`；旧路径 `PUT /api/user/profile/password` 请求体为 `oldPassword`/`password`。两条路径都校验旧密码并更新 BCrypt 新密码。
+- 前端安全节点映射：判题节点 Agent 的 `baseUrl` 使用 HTTPS、`wssUrl` 使用 WSS（网关 `/ws/judge/node`，`lb:ws://`）连接后端，`hnieoj.audience` 必须与后端 `HNIEOJ_JUDGE_NODE_AUDIENCE` 一致；网关保留 `/ws/judge/node` 与 `/judge/nodes/**` 路由，且不恢复 `/judge/tasks/**` 等退休旁路。
+
 ## 贡献说明
 
 欢迎提交 Issue / PR。提交前请说明影响模块、验证方式和涉及的配置项。
