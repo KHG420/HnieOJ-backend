@@ -7,17 +7,15 @@ import lombok.Data;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/21
- * @Description: 提交资料变更申请请求（身份 + 联系/社交字段统一入口）。
+ * @Description: 提交资料变更申请请求（身份字段 + 联系/社交字段）。
  *
- * <p>合并两套流程（BE-03.6 / W5）后，本请求是唯一的资料变更入口：
- * 字段全部可选，<b>只提交需要变更的字段</b>，未提交（null）或与当前值相同的字段不进入申请；
- * {@code reason} 仍为必填。原身份流程要求 realname/collegeId/grade/classId 四项全填，
- * 现在只在「确实要改身份字段」时才需要它们成组出现。</p>
+ * <p>字段全部可选，<b>只提交需要变更的字段</b>：未提交（null）或与当前值相同的字段不进入申请。
+ * {@code reason} 必填。</p>
  */
 @Data
 public class ProfileChangeCreateRequest {
 
-    // ---------------- 身份字段 ----------------
+    /** 身份字段：仅在确实要变更身份信息时成组提交 */
     @Size(max = 50, message = "realname 长度不能超过 50")
     private String realname;
 
@@ -28,7 +26,7 @@ public class ProfileChangeCreateRequest {
 
     private Long classId;
 
-    // ---------------- 联系/社交字段 ----------------
+    /** 联系/社交字段：与身份字段同属一个申请，可单独提交 */
     @Size(max = 100, message = "username 长度不能超过 100")
     private String username;
 

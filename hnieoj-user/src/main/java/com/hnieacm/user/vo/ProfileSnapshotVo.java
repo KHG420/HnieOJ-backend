@@ -15,9 +15,9 @@ import java.util.Set;
  * @Date: 2026/09/21
  * @Description: 用户资料快照（身份 + 联系/社交字段），用作变更申请的 original / proposed JSON。
  *
- * <p>合并两套流程前的 {@code ProfileIdentityVo} 只含 4 个身份字段；本类在其后追加 8 个
- * 联系/社交字段，字段名与历史 JSON 完全一致，因此既有待审记录的 JSON 仍能反序列化
- * （缺失字段为 null，且两侧同为 null 即「未申请变更」，不会误判为变更）。</p>
+ * <p>JSON 字段名是对外契约：{@code original}/{@code proposed} 里缺失的字段一律反序列化为 null，
+ * 且两侧同为 null 视为「未申请变更」。因此本类的<b>属性名与已有数据必须保持一致</b>，
+ * 更名会读不出既有申请。</p>
  *
  * <p>字段比较与写回都以 {@link ProfileChangeField} 为准，避免「快照字段」与「可变更字段」
  * 两份清单漂移。</p>
@@ -99,24 +99,26 @@ public class ProfileSnapshotVo {
             case CF_USERNAME -> cfUsername;
             case GITHUB -> github;
             case BLOG -> blog;
+            default -> throw new IllegalStateException("未处理的资料字段: " + field);
         };
     }
 
     /** 按字段写入（只在提交申请构造 proposed 时使用） */
     public void put(ProfileChangeField field, Object value) {
         switch (field) {
-            case REALNAME -> realname = (String) value;
-            case COLLEGE_ID -> collegeId = (Long) value;
-            case GRADE -> grade = (String) value;
-            case CLASS_ID -> classId = (Long) value;
-            case USERNAME -> username = (String) value;
-            case EMAIL -> email = (String) value;
-            case PHONE -> phone = (String) value;
-            case AVATAR -> avatar = (String) value;
-            case QQ -> qq = (String) value;
-            case CF_USERNAME -> cfUsername = (String) value;
-            case GITHUB -> github = (String) value;
-            case BLOG -> blog = (String) value;
+            case REALNAME: realname = (String) value; break;
+            case COLLEGE_ID: collegeId = (Long) value; break;
+            case GRADE: grade = (String) value; break;
+            case CLASS_ID: classId = (Long) value; break;
+            case USERNAME: username = (String) value; break;
+            case EMAIL: email = (String) value; break;
+            case PHONE: phone = (String) value; break;
+            case AVATAR: avatar = (String) value; break;
+            case QQ: qq = (String) value; break;
+            case CF_USERNAME: cfUsername = (String) value; break;
+            case GITHUB: github = (String) value; break;
+            case BLOG: blog = (String) value; break;
+            default: throw new IllegalStateException("未处理的资料字段: " + field);
         }
     }
 
@@ -128,18 +130,19 @@ public class ProfileSnapshotVo {
     /** 把本快照的字段值写回用户对象（调用方负责持久化） */
     public void applyTo(UserInfo user, ProfileChangeField field) {
         switch (field) {
-            case REALNAME -> user.setRealname(realname);
-            case COLLEGE_ID -> user.setCollegeId(collegeId);
-            case GRADE -> user.setGrade(grade);
-            case CLASS_ID -> user.setClassId(classId);
-            case USERNAME -> user.setUsername(username);
-            case EMAIL -> user.setEmail(email);
-            case PHONE -> user.setPhone(phone);
-            case AVATAR -> user.setAvatar(avatar);
-            case QQ -> user.setQq(qq);
-            case CF_USERNAME -> user.setCfUsername(cfUsername);
-            case GITHUB -> user.setGithub(github);
-            case BLOG -> user.setBlog(blog);
+            case REALNAME: user.setRealname(realname); break;
+            case COLLEGE_ID: user.setCollegeId(collegeId); break;
+            case GRADE: user.setGrade(grade); break;
+            case CLASS_ID: user.setClassId(classId); break;
+            case USERNAME: user.setUsername(username); break;
+            case EMAIL: user.setEmail(email); break;
+            case PHONE: user.setPhone(phone); break;
+            case AVATAR: user.setAvatar(avatar); break;
+            case QQ: user.setQq(qq); break;
+            case CF_USERNAME: user.setCfUsername(cfUsername); break;
+            case GITHUB: user.setGithub(github); break;
+            case BLOG: user.setBlog(blog); break;
+            default: throw new IllegalStateException("未处理的资料字段: " + field);
         }
     }
 }
