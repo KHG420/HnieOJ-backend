@@ -18,6 +18,7 @@ import com.hnieacm.user.mapper.UserProfileChangeMapper;
 import com.hnieacm.user.service.support.UserAuthStateService;
 import com.hnieacm.user.service.support.UserManageValidator;
 import com.hnieacm.user.support.MyBatisPlusTestSupport;
+import com.hnieacm.user.support.NoopTransactionManager;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,9 +29,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.AbstractPlatformTransactionManager;
-import org.springframework.transaction.support.DefaultTransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
@@ -88,7 +86,8 @@ class ProfileChangeServiceImplTest {
     void setUp() {
         service = new ProfileChangeServiceImpl(
                 userProfileChangeMapper, userInfoMapper, sysCollegeMapper, sysClassMapper,
-                userAuthStateService, userManageValidator, new ObjectMapper());
+                userAuthStateService, userManageValidator, new ObjectMapper(),
+                new NoopTransactionManager());
     }
 
     @Test
@@ -258,7 +257,7 @@ class ProfileChangeServiceImplTest {
         when(userInfoMapper.selectOne(any())).thenReturn(user("u1", "Old", 1L, "2024", 10L));
         stubValidIdentity();
 
-        TransactionTemplate template = new TransactionTemplate(new StubTransactionManager());
+        TransactionTemplate template = new TransactionTemplate(new NoopTransactionManager());
         template.executeWithoutResult(status -> {
             service.approve(6L, null, "admin");
             // 事务提交前不得直接清理鉴权缓存
@@ -315,24 +314,4 @@ class ProfileChangeServiceImplTest {
         return user;
     }
 
-    private static final class StubTransactionManager extends AbstractPlatformTransactionManager {
-
-        @Override
-        protected Object doGetTransaction() {
-            return new Object();
-        }
-
-        @Override
-        protected void doBegin(Object transaction, TransactionDefinition definition) {
-            assertThat(transaction).isNotNull();
-        }
-
-        @Override
-        protected void doCommit(DefaultTransactionStatus status) {
-        }
-
-        @Override
-        protected void doRollback(DefaultTransactionStatus status) {
-        }
-    }
 }

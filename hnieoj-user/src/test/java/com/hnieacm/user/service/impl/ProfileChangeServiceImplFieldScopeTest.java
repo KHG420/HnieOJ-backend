@@ -17,6 +17,7 @@ import com.hnieacm.user.mapper.UserProfileChangeMapper;
 import com.hnieacm.user.service.support.UserAuthStateService;
 import com.hnieacm.user.service.support.UserManageValidator;
 import com.hnieacm.user.support.MyBatisPlusTestSupport;
+import com.hnieacm.user.support.NoopTransactionManager;
 import com.hnieacm.user.vo.BatchOperationResultVo;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,13 +42,14 @@ import static org.mockito.Mockito.when;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/21
- * @Description: 合并两套「资料变更」流程后的单一流程回归（BE-03.6 / W5）。
- * <p>覆盖原通用资料流程独有的能力（联系/社交字段、批量审批），以及合并带来的关键性质：
- * 逐字段原值一致性——用户期间只改了别的字段时，本申请仍然有效且只写回本申请要改的字段。</p>
+ * @Description: 资料变更申请的字段范围回归：联系/社交字段可单独提交、身份字段成组校验、
+ * 批量审批的逐条成败。
+ * <p>核心性质是**逐字段原值一致性**：用户期间只改了别的字段时，本申请仍然有效，
+ * 且审批只写回本申请要改的字段。</p>
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class ProfileChangeServiceImplMergedFieldsTest {
+class ProfileChangeServiceImplFieldScopeTest {
 
     /** 邮箱申请：原值与目标值只差 email */
     private static final String EMAIL_ORIGINAL =
@@ -85,7 +87,8 @@ class ProfileChangeServiceImplMergedFieldsTest {
     void setUp() {
         service = new ProfileChangeServiceImpl(
                 userProfileChangeMapper, userInfoMapper, sysCollegeMapper, sysClassMapper,
-                userAuthStateService, userManageValidator, new ObjectMapper());
+                userAuthStateService, userManageValidator, new ObjectMapper(),
+                new NoopTransactionManager());
     }
 
     // ---------------- 提交 ----------------

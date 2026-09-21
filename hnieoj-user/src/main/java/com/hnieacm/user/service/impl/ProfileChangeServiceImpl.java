@@ -26,10 +26,12 @@ import com.hnieacm.user.service.support.UserManageValidator;
 import com.hnieacm.user.vo.BatchOperationResultVo;
 import com.hnieacm.user.vo.ProfileChangeVo;
 import com.hnieacm.user.vo.ProfileSnapshotVo;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -40,23 +42,18 @@ import java.util.Set;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/21
- * @Description: 用户资料变更申请服务实现（**唯一**的资料变更流程，按 id 审批）。
+ * @Description: 用户资料变更申请服务实现（项目内唯一的资料变更流程，按申请 id 审批）。
  *
- * <h3>合并背景（BE-03.6 / W5）</h3>
- * 原先两套流程并存：本流程（表 user_profile_change，按 id 审）独占身份字段；
- * UserProfileChangeServiceImpl（表 user_profile_change_apply，按 uid 审）受理联系/社交字段。
- * 两条待审记录可先后覆盖同一 user_info 行。现在收敛为本流程一处：
  * <ul>
- *   <li>字段全集见 {@link ProfileChangeField}（4 个身份 + 8 个联系/社交）；</li>
- *   <li>original/proposed 用 {@link ProfileSnapshotVo} 全量快照，历史身份 JSON 仍可反序列化；</li>
+ *   <li>字段全集见 {@link ProfileChangeField}（4 个身份字段 + 8 个联系/社交字段）；</li>
+ *   <li>original/proposed 用 {@link ProfileSnapshotVo} 全量快照；</li>
  *   <li>只有 original 与 proposed 不同的字段才算「本申请要改的字段」，逐字段做原值一致性校验并写回，
- *       因此别的申请改了无关字段不会让本条申请误判失效，两条流程互相覆盖的问题从根上消失；</li>
- *   <li>审批粒度仍是申请 id，批量审批按 id 列表（{@link #batchApprove}）。</li>
+ *       因此用户在别处改了无关字段不会让本条申请误判失效；</li>
+ *   <li>审批粒度是申请 id，批量审批按 id 列表（{@link #batchApprove}），每条申请一个独立事务。</li>
  * </ul>
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ProfileChangeServiceImpl implements ProfileChangeService {
 
     private static final int MAX_REASON_LENGTH = 1000;
@@ -68,6 +65,35 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
     private final UserAuthStateService userAuthStateService;
     private final UserManageValidator userManageValidator;
     private final ObjectMapper objectMapper;
+
+    /**
+     * 批量审批的逐条事务模板。
+     * <p>{@code @Transactional} 只对「经 Spring 代理的外部调用」生效，同类内部自调用不经过代理；
+     * 因此批量路径不能靠调用本类的 {@code approve(...)} 来获得事务，否则单条审批里的申请行锁、
+     * 用户行锁与两次写入都失去事务保证。这里显式给每条申请开一个独立事务。</p>
+     * <p>用 {@code REQUIRES_NEW} 而不是默认的 {@code REQUIRED}：即使批量方法将来被包在更大的事务里，
+     * 每条申请仍是独立事务，单条失败只回滚该条，不会把已成功的条目一起回滚。</p>
+     */
+    private final TransactionTemplate perItemTransaction;
+
+    public ProfileChangeServiceImpl(UserProfileChangeMapper userProfileChangeMapper,
+                                    UserInfoMapper userInfoMapper,
+                                    SysCollegeMapper sysCollegeMapper,
+                                    SysClassMapper sysClassMapper,
+                                    UserAuthStateService userAuthStateService,
+                                    UserManageValidator userManageValidator,
+                                    ObjectMapper objectMapper,
+                                    PlatformTransactionManager transactionManager) {
+        this.userProfileChangeMapper = userProfileChangeMapper;
+        this.userInfoMapper = userInfoMapper;
+        this.sysCollegeMapper = sysCollegeMapper;
+        this.sysClassMapper = sysClassMapper;
+        this.userAuthStateService = userAuthStateService;
+        this.userManageValidator = userManageValidator;
+        this.objectMapper = objectMapper;
+        this.perItemTransaction = new TransactionTemplate(transactionManager);
+        this.perItemTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -146,6 +172,15 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void approve(Long id, String reason, String reviewerUid) {
+        doApprove(id, reason, reviewerUid);
+    }
+
+    /**
+     * 单条审批的实际逻辑。
+     * <p>调用方必须已经开启事务：控制器走 {@link #approve}（{@code @Transactional} 经代理生效），
+     * 批量路径走 {@link #batchApprove} 的逐条事务模板。</p>
+     */
+    private void doApprove(Long id, String reason, String reviewerUid) {
         // 统一锁序：先锁申请行，再锁用户行，避免与其它审核事务死锁。
         UserProfileChange change = requireLockedChange(id);
         if (ProfileChangeStatusConstant.APPROVED.equals(change.getStatus())) {
@@ -227,12 +262,14 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
             throw new BizException(ResultCode.BAD_REQUEST, "ids 不能为空");
         }
         BatchOperationResultVo result = new BatchOperationResultVo();
+        // 逐条独立事务：失败的那条回滚后再计入失败，成功的那条已经提交、不受影响。
+        // 这里不能直接调本类的 approve(...)——同类自调用不经过 Spring 代理，@Transactional 不会生效。
         request.getIds().stream()
                 .filter(Objects::nonNull)
                 .distinct()
                 .forEach(id -> {
                     try {
-                        approve(id, null, reviewerUid);
+                        perItemTransaction.executeWithoutResult(status -> doApprove(id, null, reviewerUid));
                         result.addSuccess();
                     } catch (Exception e) {
                         result.addFailure(String.valueOf(id), e.getMessage());
@@ -289,7 +326,7 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
 
     /**
      * 按待变更字段做校验。
-     * <p>身份字段只要有一个要改，就按原身份流程的口径整体校验（实名/学院/年级/班级四项齐全且互相匹配），
+     * <p>身份字段只要有一个要改，就整体校验（实名/学院/年级/班级四项齐全且互相匹配），
      * 因为 proposed 里的这四项始终是完整值。</p>
      */
     private void validateProposed(Set<ProfileChangeField> changedFields, ProfileSnapshotVo proposed, String uid) {
@@ -320,7 +357,7 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
     }
 
     /**
-     * 校验实名/学院/年级/班级归属（原身份流程口径，保持不变）。
+     * 校验实名/学院/年级/班级归属（四项齐全、班级与学院/年级匹配、年级确实存在）。
      */
     private void validateIdentity(String realname, Long collegeId, String grade, Long classId) {
         String trimmedRealname = StrUtil.trim(realname);
