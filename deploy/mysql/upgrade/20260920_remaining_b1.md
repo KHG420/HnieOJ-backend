@@ -5,7 +5,7 @@
 ## 1. 适用范围与前置条件
 
 - 存量旧库：已按旧版 `deploy/mysql/hnieoj_多数据库.sql`（不含 20260919 Redis Gateway / 安全节点 schema）初始化，需按 `20260919_redis_gateway.sql` → `20260919_secure_node.sql` → `20260920_remaining_b1.sql` → `20260920_remaining_b2.sql` 顺序升级。
-- 全新安装（fresh）：使用本仓库当前完整初始化脚本 `deploy/mysql/hnieoj_多数据库.sql`（已内含 20260919 Redis Gateway 与安全节点全部 schema），只需 完整初始化 → `20260920_remaining_b1.sql` → `20260920_remaining_b2.sql`，无需重复执行 `20260919_redis_gateway.sql`、`20260919_secure_node.sql`（fresh 上游初始化后同样必须执行 B1/B2）。
+- 全新安装（fresh）：`deploy/mysql/hnieoj_多数据库.sql` 已内含本批全部列/索引（`announcement.category`、`uk_oj_username`、`idx_tid`），执行完整初始化后无需再执行本脚本。
 - 脚本只做增量变更，不含任何 `DROP TABLE` / `DROP COLUMN` / 删除数据操作，可重复执行。
 - 不使用 MySQL 不支持的 `ADD COLUMN IF NOT EXISTS`，改用 `information_schema` 判断 + 预处理语句执行。
 - 本脚本不自动在生产执行；请在测试/预发库验证后由运维手动执行。

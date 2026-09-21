@@ -41,7 +41,7 @@ public class UserProfileVo {
     private String college;
 
     /**
-     * 学院 ID，供前端自助资料表单级联选择；原名称字段保留。
+     * 学院 ID，供前端自助资料表单级联选择
      */
     private Long collegeId;
 
@@ -49,7 +49,7 @@ public class UserProfileVo {
     private String className;
 
     /**
-     * 班级 ID，供前端自助资料表单级联选择；原名称字段保留。
+     * 班级 ID，供前端自助资料表单级联选择
      */
     private Long classId;
 }

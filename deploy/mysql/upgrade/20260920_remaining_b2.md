@@ -6,7 +6,7 @@
 
 - 存量旧库：已按旧版 `deploy/mysql/hnieoj_多数据库.sql`（不含 20260919 Redis Gateway / 安全节点 schema）初始化，需依次执行
   `20260919_redis_gateway.sql`、`20260919_secure_node.sql`、`20260920_remaining_b1.sql` 后再执行本脚本。
-- 全新安装（fresh）：使用本仓库当前完整初始化脚本 `deploy/mysql/hnieoj_多数据库.sql`（已内含 20260919 Redis Gateway 与安全节点全部 schema），只需 完整初始化 → `20260920_remaining_b1.sql` → 本脚本，无需重复执行 `20260919_redis_gateway.sql`、`20260919_secure_node.sql`（fresh 上游初始化后同样必须执行 B1/B2）。
+- 全新安装（fresh）：`deploy/mysql/hnieoj_多数据库.sql` 已内含本批 3 张表，执行完整初始化后无需再执行本脚本。
 - 脚本只新增 3 张 `hnieoj_user_db` 表，不含任何 `DROP TABLE` / `DROP COLUMN` / `UPDATE` / 删除数据操作，可重复执行。
 - 使用 `CREATE TABLE IF NOT EXISTS`，重跑安全；已存在的表不会被重建或覆盖。
 - 本脚本不自动在生产执行；请在测试/预发库验证后由运维手动执行。
@@ -24,7 +24,7 @@
 - 3 张表全部使用 `CREATE TABLE IF NOT EXISTS`；重复执行是空操作。
 - 脚本不读写任何历史业务表，不会覆盖或删除历史数据。
 - 未创建 `(uid, status)` 上的“唯一待审”索引：同一用户仅一条待审申请由业务层
-  `SELECT ... FOR UPDATE` 锁定 `user_info` 用户行保证（`AC5`/`AC6`），不依赖数据库唯一约束。
+  `SELECT ... FOR UPDATE` 锁定 `user_info` 用户行保证，不依赖数据库唯一约束。
 
 ## 4. 验证
 

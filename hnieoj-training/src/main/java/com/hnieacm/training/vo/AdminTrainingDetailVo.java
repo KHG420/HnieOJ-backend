@@ -20,6 +20,9 @@ public class AdminTrainingDetailVo {
 
     private String auth;
 
+    /**
+     * 私有题单密码：不明文回显，恒为 null；编辑保存时留空表示保留原密码
+     */
     private String privatePwd;
 
     private String description;

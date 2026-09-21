@@ -110,8 +110,7 @@ class AdminDiscussionServiceImplDetailTest {
         discussion.setStatus(DiscussionStatusConstant.NORMAL);
         discussion.setViewNum(7);
         when(discussionMapper.selectOne(any())).thenReturn(discussion);
-        // 上游已改为原子自增 incrementViewNum，回归测试同步适配该 mapper 方法，
-        // 仍验证公开详情浏览量 +1 且确实执行了写库自增。
+        // 公开详情通过原子自增 incrementViewNum 完成浏览量 +1 并写库。
         when(discussionMapper.incrementViewNum(21L)).thenAnswer(invocation -> {
             discussion.setViewNum(discussion.getViewNum() + 1);
             return 1;

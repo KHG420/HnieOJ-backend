@@ -216,20 +216,10 @@
 - `hnieoj_system_db.announcement` 新增 `category varchar(20) NOT NULL DEFAULT 'ANNOUNCEMENT'`。
 - `hnieoj_judge_db.remote_judge_account` 新增唯一索引 `uk_oj_username (oj, username)`；加索引前检测历史重复，存在重复则明确中止且不删除数据。
 - `hnieoj_problem_db.problem_tag` 新增索引 `idx_tid (tid)`。
-- 脚本可重复执行，不含破坏性 DDL；存量旧库顺序为 `20260919_redis_gateway.sql` → `20260919_secure_node.sql` → B1 → B2；全新安装（fresh）用本仓库当前完整初始化脚本 `hnieoj_多数据库.sql`（已内含 20260919 两步 schema）后只需执行 B1 → B2，无需重复 20260919 两步。
+- 脚本可重复执行，不含破坏性 DDL；存量旧库顺序为 `20260919_redis_gateway.sql` → `20260919_secure_node.sql` → B1 → B2；全新安装（fresh）只需执行完整初始化脚本 `hnieoj_多数据库.sql`（已内含 20260919 两步与 B1/B2 全部 schema），无需再执行任何增量脚本。
 - 历史 `(oj, username)` 重复预检在任何本批 DDL 之前执行；MySQL 8 预处理语句不支持 `SIGNAL`（ERROR 1295），
   脚本用临时存储过程 `b1_precheck_remote_judge_account_duplicates` 承载条件 `SIGNAL SQLSTATE '45000'`，
   预检通过后立即删除，失败残留下次重跑会先清理，不引入永久迁移框架。
-
-## 8. 自测报告（B1 返工 R1/R2/R3）
-
-- 命令：`mvn -o -q -pl hnieoj-problem,hnieoj-submission,hnieoj-announcement,gateway -am test`
-- 结果：退出码 0；各模块 surefire 报告 0 failures / 0 errors（共 18 个测试类）。
-- 迁移：本机 MySQL 8 测试容器验证（未连生产）——存在重复时以 `SQLSTATE 45000` 中止且不删除数据；
-  空重复连续两次执行均通过；`announcement.category`、`uk_oj_username`、`idx_tid` 幂等创建，成功后无残留过程。
-- 已完成：R1 迁移条件 SIGNAL；R2 `recommendations` 显式登录校验 + 控制器匿名拒绝/登录成功回归；
-  R3 账号更新仅写显式字段（空白密码不落库）+ 空密码编辑不回退已改密码回归。
-- 未完成项：无。（真实 HTTP 端到端与生产库迁移由 Codex 独立验收。）
 
 ---
 
@@ -237,7 +227,7 @@
 
 - 本批接口全部位于 `hnieoj-user`，统一返回 `Result<T>`：`{"code":200,"msg":"success","data":...}`。
 - 分页统一 `page>=1`、`1<=pageSize<=100`，返回 `PageVo<T>`：`{"list":[...],"total":N}`。
-- 鉴权：网关对 `/api/admin/**` 要求 ADMIN/ROOT；`hnieoj-user` 未注册 SaInterceptor，因此服务端在每个接口内显式执行登录态/角色校验，形成双层防护。
+- 鉴权：网关对 `/api/admin/**` 要求 ADMIN/ROOT；各 MVC 服务由 `common` 的 `SaTokenMvcAutoConfiguration` 统一注册 `SaInterceptor`（`/**`，排除 `/internal/**`），方法上的 `@SaCheckLogin` / `@SaCheckRole` / `@SaCheckPermission` 在服务内生效；本批接口另保留显式登录态/角色校验，形成双层防护。
 - 本批新增表见 `deploy/mysql/upgrade/20260920_remaining_b2.sql`；无破坏性 DDL，可重复执行。
 
 ## B2-1 管理通知（ADMIN/ROOT）

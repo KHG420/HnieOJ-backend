@@ -125,7 +125,7 @@ public class AchievementApplyServiceImpl implements AchievementApplyService {
     /**
      * @MethodName applyAdminFileUrl
      * @Param vo
-     * @Description 内存转换附件地址：外部 HTTP(S) 原样返回，本地 key 改为受保护的下载接口
+     * @Description 内存转换附件地址：外部 HTTP(S) 原样返回，本地 key 输出为受保护的下载接口
      * @Return
      * @Author HaoRan_Lyu
      * @Date 2026/09/20

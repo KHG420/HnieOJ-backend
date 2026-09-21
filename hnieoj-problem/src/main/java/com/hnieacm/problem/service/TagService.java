@@ -36,7 +36,7 @@ public interface TagService {
     void updateTag(Long id, TagUpdateRequest request);
 
     /**
-     * 删除标签；被题目引用时返回冲突，不删除关联关系。
+     * 删除标签；被题目引用时抛出 400 业务异常，不删除关联关系。
      *
      * @param id 标签 id
      */

@@ -266,9 +266,9 @@ public final class ProblemServiceSupport {
      * @Date 2026/02/21
      */
     private static Map<String, Long> ensureTags(TagMapper tagMapper, List<String> names) {
-        // 事务内对已存在的 tag 行加锁（FOR UPDATE），与 TagServiceImpl.deleteTag、
-        // ProblemTagConfigServiceImpl.deleteRemovedUnusedTags 使用同一把行锁，
-        // 保证“删除标签”和“题目维护标签关联”不会交错产生悬挂的 problem_tag 引用。
+        // 锁协议：TagServiceImpl.deleteTag 与 ProblemTagConfigServiceImpl.deleteRemovedUnusedTags
+        // 都先对本行加 FOR UPDATE 再做 problem_tag 引用检查（且用当前读），本方法同样先锁 tag 行再建关联。
+        // 三条路径统一「先锁 tag 行、后读写 problem_tag」，因此删除与建关联不会交错产生悬挂引用。
         List<Tag> existed = tagMapper.selectList(
                 new LambdaQueryWrapper<Tag>().in(Tag::getName, names).last("FOR UPDATE")
         );
