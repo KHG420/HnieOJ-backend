@@ -429,7 +429,7 @@
     "qq": "123456",
     "grade": "2024",
     "realname": "张三",
-    "cf_username": null,
+    "cfUsername": null,
     "github": "https://github.com/me",
     "blog": "https://blog.example.com",
     "roles": ["student"],
@@ -455,21 +455,50 @@
 - 响应：`{"code":200,"msg":"密码修改成功","data":null}`
 - 错误：401 未登录；400 旧/新密码为空或新密码长度非法；1003 旧密码错误。
 
-## B2-5 身份资料（实名/学院/年级/班级）变更申请
+## B2-5 资料变更申请（身份字段 + 联系/社交字段）
+
+资料变更只有这一套流程，按**申请 id** 审批；`original`/`proposed` 以 JSON 全量快照保存。
+可申请字段共 12 个（清单与 `user_info` 列宽见 `ProfileChangeField`）：
+
+| 分组 | 字段 |
+| --- | --- |
+| 身份字段 | `realname`、`collegeId`、`grade`、`classId` |
+| 联系/社交字段 | `username`、`email`、`phone`、`avatar`、`qq`、`cfUsername`、`github`、`blog` |
+
+- 字段全部可选，**只提交需要变更的字段**：未传（`null`）或与当前值相同的字段不进入申请，
+  `proposed` 在这些字段上等于 `original`。
+- 只有 `original` 与 `proposed` 不同的字段才算「本申请要改的字段」；审批时逐字段做原值一致性校验，
+  并只写回这些字段。用户在别处改了无关字段不会让本申请失效。
+- 身份字段只要有一项要改，就整体校验四项（实名/学院/年级/班级）齐全且相互匹配。
+- 同一用户同时只允许一条 `PENDING` 申请。
+- 本人直接修改白名单字段仍走 `PUT /api/user/profile`（见 B2-3），不经过本流程。
+
+已退役、**不再存在**的接口（调用返回 404 `接口不存在`）：
+`POST/GET /api/user/profile/change-requests`、`GET /api/users/changes`、
+`PUT /api/users/{uid}/changes/approve`、`PUT /api/users/{uid}/changes/reject`、
+`PUT /api/users/changes/batch-approve`；对应的 `user_profile_change_apply` 表也已不在初始化脚本中。
 
 ### B2-5.1 提交申请（本人）
 
 - `POST /api/user/profile-change-requests`
-- 请求体：
+- 请求体（只列需要变更的字段；身份变更需四字段成组）：
 
 ```json
-{ "realname": "张三", "collegeId": 1, "grade": "2024", "classId": 10, "reason": "班级调整" }
+{ "realname": "张三", "collegeId": 1, "grade": "2024", "classId": 11, "reason": "班级调整" }
 ```
 
-- 校验：实名非空 ≤50；学院/班级真实存在且相互匹配、年级匹配；`reason` 必填 ≤1000；uid 固定为登录态。
-- 行为：事务内锁 `user_info` 用户行，若已有 `PENDING` 申请返回 400 冲突；保存仅含 4 项身份字段的 original/proposed JSON 与 `PENDING` 状态。
+```json
+{ "email": "new@example.com", "qq": "123456", "reason": "换邮箱" }
+```
+
+- 校验：`reason` 必填 ≤1000；`realname` ≤50、`grade` ≤20、`username` 按用户名长度规则（默认 2~20）、
+  `email` ≤255 且未被他人占用、`phone` ≤20、`avatar` ≤500、`qq` ≤20、`cfUsername` ≤100、
+  `github` ≤255、`blog` ≤255；身份字段成组校验学院/班级真实存在且相互匹配、年级匹配；uid 固定为登录态。
+- 行为：事务内锁 `user_info` 用户行；已有 `PENDING` 申请返回 400 冲突；没有任何字段实际变化返回 400；
+  保存全量 `original`/`proposed` JSON 与 `PENDING` 状态。
 - 响应：`{"code":200,"msg":"提交成功","data":null}`
-- 错误：401；400 字段非法/已存在待审申请；1009 学院不存在；1010 班级不存在；1011 年级不存在。
+- 错误：401；400 无字段变更/已存在待审申请/字段非法；1002 邮箱已被占用；1006 用户名长度非法；
+  1009 学院不存在；1010 班级不存在；1011 年级不存在。
 
 ### B2-5.2 本人申请列表
 
@@ -485,8 +514,16 @@
       {
         "id": 1,
         "uid": "2024001",
-        "original": { "realname": "张三", "collegeId": 1, "grade": "2024", "classId": 10 },
-        "proposed": { "realname": "张三", "collegeId": 1, "grade": "2024", "classId": 11 },
+        "original": {
+          "realname": "张三", "collegeId": 1, "grade": "2024", "classId": 10,
+          "username": "zhangsan", "email": "a@example.com", "phone": null, "avatar": null,
+          "qq": null, "cfUsername": null, "github": null, "blog": null
+        },
+        "proposed": {
+          "realname": "张三", "collegeId": 1, "grade": "2024", "classId": 11,
+          "username": "zhangsan", "email": "a@example.com", "phone": null, "avatar": null,
+          "qq": null, "cfUsername": null, "github": null, "blog": null
+        },
         "reason": "班级调整",
         "status": "PENDING",
         "reviewerUid": null,
@@ -501,6 +538,8 @@
 }
 ```
 
+- 快照中未涉及的字段为 `null`；两侧同为 `null` 表示该字段未申请变更。
+
 ### B2-5.3 管理端申请列表（ADMIN/ROOT）
 
 - `GET /api/admin/profile-change-requests?page=1&pageSize=10&status=PENDING&keyword=`
@@ -512,17 +551,40 @@
 
 - `POST /api/admin/profile-change-requests/{id}/approve`
 - 请求体可选：`{ "reason": "同意" }`
-- 行为：事务内先锁申请行、再锁用户行（统一锁序）；已通过则幂等返回；已驳回则 400 反向审核拒绝；校验用户当前身份仍与申请原值一致，不一致返回 400 冲突（不用旧申请覆盖新值）；通过后原子更新 `user_info` 身份字段与申请状态/审核人/审核时间，并在提交后清理鉴权缓存（不改变角色）。
+- 行为：事务内先锁申请行、再锁用户行（统一锁序）；已通过则幂等返回；已驳回则 400 反向审核拒绝；
+  逐字段校验用户当前值仍与申请原值一致，任一不一致返回 400（不用旧申请覆盖新值）；
+  通过后原子更新 `user_info` 中本申请涉及的字段与申请状态/审核人/审核时间；
+  含身份字段时在提交后清理该用户鉴权缓存（不改变角色/权限行），纯联系/社交字段变更不触发缓存清理。
 - 响应：`{"code":200,"msg":"审核通过","data":null}`
-- 错误：401/403；404 申请不存在；400 原值已变更/已驳回/申请数据失效。
+- 错误：401/403；404 申请不存在；400 原值已变更/已驳回/申请不含字段变更。
 
 ### B2-5.5 审核驳回（ADMIN/ROOT）
 
 - `POST /api/admin/profile-change-requests/{id}/reject`
 - 请求体：`{ "reason": "材料不足" }`，`reason` 必填。
-- 行为：已驳回幂等返回；已通过则 400 反向审核拒绝；仅更新申请状态/审核人/审核时间/驳回原因，不改动用户身份。
+- 行为：已驳回幂等返回；已通过则 400 反向审核拒绝；仅更新申请状态/审核人/审核时间/驳回原因，不改动用户资料。
 - 响应：`{"code":200,"msg":"已驳回","data":null}`
 - 错误：401/403；404 申请不存在；400 驳回原因缺失/已通过。
+
+### B2-5.6 批量审核通过（ADMIN/ROOT）
+
+- `POST /api/admin/profile-change-requests/batch-approve`
+- 请求体：
+
+```json
+{ "ids": [1, 2, 3] }
+```
+
+- 行为：`ids` 去重后**逐条独立审批，每条一个独立事务**。单条失败只回滚该条并记入失败原因，
+  已成功的条目保持已提交，整体返回 200。
+- 响应：`data` 为成功数与失败明细：
+
+```json
+{ "successCount": 2, "failedCount": 1, "failures": [ { "id": "3", "reason": "用户资料已发生变化，申请已失效" } ] }
+```
+
+- 错误：401/403；400 `ids` 为空。
+
 
 ## B2-6 网关路由
 
