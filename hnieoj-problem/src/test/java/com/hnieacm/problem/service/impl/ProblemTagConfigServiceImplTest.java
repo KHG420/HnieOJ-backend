@@ -17,12 +17,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -65,6 +67,35 @@ class ProblemTagConfigServiceImplTest {
         assertThat(tagCaptor.getValue().getCategory()).isEqualTo("算法");
         verify(tagMapper).update(org.mockito.ArgumentMatchers.isNull(), any());
         verify(tagMapper).deleteById(2L);
+    }
+
+    @Test
+    void shouldTreatConcurrentSameNameInsertAsExisting() {
+        ProblemTagConfigServiceImpl service = new ProblemTagConfigServiceImpl(tagMapper, problemTagMapper);
+        when(tagMapper.selectList(any())).thenReturn(List.of());
+        Tag concurrent = tag(9L, "graph", "算法");
+        when(tagMapper.insert(any(Tag.class))).thenThrow(new DuplicateKeyException("uk_name"));
+        when(tagMapper.selectOne(any())).thenReturn(concurrent);
+
+        // 并发保存同一份新标签：唯一键冲突必须被消化为「已存在」，不能抛成系统异常
+        service.save(request(group("算法", List.of("graph"))));
+
+        verify(tagMapper).selectOne(any());
+        // 并发创建时以先写入者的分类为准，不再争抢该行写锁
+        verify(tagMapper, never()).update(any(), any());
+    }
+
+    @Test
+    void shouldFailWithBusinessErrorWhenConcurrentRowIsGone() {
+        ProblemTagConfigServiceImpl service = new ProblemTagConfigServiceImpl(tagMapper, problemTagMapper);
+        when(tagMapper.selectList(any())).thenReturn(List.of());
+        when(tagMapper.insert(any(Tag.class))).thenThrow(new DuplicateKeyException("uk_name"));
+        when(tagMapper.selectOne(any())).thenReturn(null);
+
+        // 读不到说明对方已回滚：交回业务错误让调用方重试，绝不静默丢弃
+        assertThatThrownBy(() -> service.save(request(group("算法", List.of("graph")))))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("标签写入并发冲突");
     }
 
     @Test

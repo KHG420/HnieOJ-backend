@@ -14,6 +14,7 @@ import com.hnieacm.problem.mapper.TagMapper;
 import com.hnieacm.problem.service.ProblemTagConfigService;
 import com.hnieacm.problem.vo.TagGroupVo;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,8 +74,26 @@ public class ProblemTagConfigServiceImpl implements ProblemTagConfigService {
                 Tag tag = new Tag();
                 tag.setName(desiredTag.name());
                 tag.setCategory(desiredTag.category());
-                tagMapper.insert(tag);
-            } else if (!desiredTag.category().equals(existing.getCategory())) {
+                try {
+                    tagMapper.insert(tag);
+                    continue;
+                } catch (DuplicateKeyException e) {
+                    // 并发保存同一份新标签：INSERT 命中唯一键时本事务已持有该行的 S 锁，
+                    // 此处只能再用 S 兼容的当前读（FOR SHARE）确认，若改写成 FOR UPDATE 升级为 X
+                    // 会与同样卡在 S 锁上的并发事务互相等待，直接死锁。
+                    Tag concurrent = tagMapper.selectOne(new LambdaQueryWrapper<Tag>()
+                            .eq(Tag::getName, desiredTag.name())
+                            .last("FOR SHARE"));
+                    if (concurrent == null || concurrent.getId() == null) {
+                        // 取不到说明对方已回滚，交回业务错误让调用方重试，绝不静默丢弃。
+                        throw new BizException(ResultCode.INTERNAL_ERROR,
+                                "标签写入并发冲突，请重试：" + desiredTag.name());
+                    }
+                    // 并发创建时以先写入者的分类为准，不再争抢该行写锁
+                    continue;
+                }
+            }
+            if (!desiredTag.category().equals(existing.getCategory())) {
                 tagMapper.update(null, new LambdaUpdateWrapper<Tag>()
                         .eq(Tag::getId, existing.getId())
                         .set(Tag::getCategory, desiredTag.category()));

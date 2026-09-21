@@ -287,9 +287,10 @@ public final class ProblemServiceSupport {
                 nameToId.put(name, t.getId());
             } catch (DuplicateKeyException e) {
                 // 并发事务已插入同名标签：REPEATABLE READ 下普通 SELECT 可能沿用旧快照看不到新行，
-                // 必须用当前读（FOR UPDATE）取回；读不到说明对方回滚，重试一次插入，仍失败则不静默吞错。
+                // 必须用当前读取回。此处只能用 S 兼容的 FOR SHARE：INSERT 命中唯一键时本事务已持有
+                // 该行的 S 锁，若改用 FOR UPDATE 升级为 X，会与同样持有 S 的并发事务互相等待而死锁。
                 Tag concurrent = tagMapper.selectOne(
-                        new LambdaQueryWrapper<Tag>().eq(Tag::getName, name).last("FOR UPDATE"));
+                        new LambdaQueryWrapper<Tag>().eq(Tag::getName, name).last("FOR SHARE"));
                 if (concurrent != null && concurrent.getId() != null) {
                     nameToId.put(concurrent.getName(), concurrent.getId());
                     continue;

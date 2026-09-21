@@ -10,9 +10,13 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -133,6 +137,62 @@ public class GlobalExceptionHandler {
     public Result<?> handleTypeMismatchException(MethodArgumentTypeMismatchException e) {
         log.warn("参数类型不匹配: {} -> {}", e.getName(), e.getValue());
         return Result.error(ResultCode.BAD_REQUEST, "参数类型不匹配: " + e.getName());
+    }
+
+    /**
+     * @MethodName handleMissingParameterException
+     * @Param e
+     * @Description 处理缺少必需请求参数异常（如分页端点未传 page）
+     * @Return @return {@link Result }<{@link ? }>
+     * @Author HaoRan_Lyu
+     * @Date 2026/09/21
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public Result<?> handleMissingParameterException(MissingServletRequestParameterException e) {
+        log.warn("缺少必需参数: {}", e.getParameterName());
+        return Result.error(ResultCode.BAD_REQUEST, "缺少必需参数: " + e.getParameterName());
+    }
+
+    /**
+     * @MethodName handleMissingPartException
+     * @Param e
+     * @Description 处理缺少必需 multipart 部分异常（如上传接口未带 file）
+     * @Return @return {@link Result }<{@link ? }>
+     * @Author HaoRan_Lyu
+     * @Date 2026/09/21
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public Result<?> handleMissingPartException(MissingServletRequestPartException e) {
+        log.warn("缺少必需的表单部分: {}", e.getRequestPartName());
+        return Result.error(ResultCode.BAD_REQUEST, "缺少必需的表单部分: " + e.getRequestPartName());
+    }
+
+    /**
+     * @MethodName handleMediaTypeNotSupportedException
+     * @Param e
+     * @Description 处理请求 Content-Type 不受支持异常（如向 multipart 接口发送 JSON）
+     * @Return @return {@link Result }<{@link ? }>
+     * @Author HaoRan_Lyu
+     * @Date 2026/09/21
+     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public Result<?> handleMediaTypeNotSupportedException(HttpMediaTypeNotSupportedException e) {
+        log.warn("Content-Type 不受支持: {}", e.getContentType());
+        return Result.error(ResultCode.BAD_REQUEST, "Content-Type 不受支持: " + e.getContentType());
+    }
+
+    /**
+     * @MethodName handleMaxUploadSizeExceededException
+     * @Param e
+     * @Description 处理上传文件超过大小限制异常
+     * @Return @return {@link Result }<{@link ? }>
+     * @Author HaoRan_Lyu
+     * @Date 2026/09/21
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public Result<?> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException e) {
+        log.warn("上传内容超过大小限制: {}", e.getMessage());
+        return Result.error(ResultCode.BAD_REQUEST, "上传内容超过大小限制，请压缩后重试");
     }
 
     /**
