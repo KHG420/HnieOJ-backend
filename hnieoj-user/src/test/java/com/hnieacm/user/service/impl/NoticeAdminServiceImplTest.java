@@ -1,6 +1,7 @@
 package com.hnieacm.user.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hnieacm.common.exception.BizException;
@@ -72,6 +73,41 @@ class NoticeAdminServiceImplTest {
     void setUp() {
         service = new NoticeAdminServiceImpl(
                 userNoticeMapper, userMessageMapper, userInfoMapper, sysClassMapper, new ObjectMapper());
+    }
+
+    @Test
+    void userQueriesSelectOnlyUidAndKeepInFilters() {
+        when(userInfoMapper.selectList(any())).thenReturn(List.of(user("u1")));
+        service.createNotice(request("hello", "body", NoticeTargetTypeConstant.USERS, List.of("u1")), "admin");
+
+        UserNotice usersNotice = notice(21L, NoticeTargetTypeConstant.USERS, "[\"u1\"]", NoticeStatusConstant.DRAFT);
+        when(userNoticeMapper.selectOne(any())).thenReturn(usersNotice);
+        service.publishNotice(21L);
+
+        UserNotice classesNotice = notice(22L, NoticeTargetTypeConstant.CLASSES, "[\"7\"]", NoticeStatusConstant.DRAFT);
+        when(userNoticeMapper.selectOne(any())).thenReturn(classesNotice);
+        service.publishNotice(22L);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Wrapper<UserInfo>> captor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(userInfoMapper, times(3)).selectList(captor.capture());
+        List<Wrapper<UserInfo>> wrappers = captor.getAllValues();
+        assertThat(wrappers).hasSize(3);
+
+        LambdaQueryWrapper<UserInfo> ensureUsers = asLambda(wrappers.get(0));
+        assertThat(ensureUsers.getSqlSelect()).isEqualTo("uid");
+        assertThat(ensureUsers.getTargetSql()).contains("uid").contains("IN");
+        assertThat(ensureUsers.getParamNameValuePairs().values()).containsExactly("u1");
+
+        LambdaQueryWrapper<UserInfo> usersRecipients = asLambda(wrappers.get(1));
+        assertThat(usersRecipients.getSqlSelect()).isEqualTo("uid");
+        assertThat(usersRecipients.getTargetSql()).contains("uid").contains("IN");
+        assertThat(usersRecipients.getParamNameValuePairs().values()).containsExactly("u1");
+
+        LambdaQueryWrapper<UserInfo> classRecipients = asLambda(wrappers.get(2));
+        assertThat(classRecipients.getSqlSelect()).isEqualTo("uid");
+        assertThat(classRecipients.getTargetSql()).contains("class_id").contains("IN");
+        assertThat(classRecipients.getParamNameValuePairs().values()).containsExactly(7L);
     }
 
     @Test
@@ -285,6 +321,11 @@ class NoticeAdminServiceImplTest {
         UserInfo user = new UserInfo();
         user.setUid(uid);
         return user;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static LambdaQueryWrapper<UserInfo> asLambda(Wrapper<UserInfo> wrapper) {
+        return (LambdaQueryWrapper<UserInfo>) wrapper;
     }
 
     @SuppressWarnings("unused")

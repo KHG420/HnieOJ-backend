@@ -252,7 +252,7 @@ public class NoticeAdminServiceImpl implements NoticeAdminService {
 
     private void ensureUsersExist(Set<String> uids) {
         List<UserInfo> users = userInfoMapper.selectList(
-                new LambdaQueryWrapper<UserInfo>().in(UserInfo::getUid, uids)
+                new LambdaQueryWrapper<UserInfo>().select(UserInfo::getUid).in(UserInfo::getUid, uids)
         );
         Set<String> existed = users == null ? Set.of()
                 : users.stream().map(UserInfo::getUid).collect(Collectors.toSet());
@@ -285,7 +285,7 @@ public class NoticeAdminServiceImpl implements NoticeAdminService {
     private List<String> resolveRecipients(String targetType, List<String> targetIds) {
         if (NoticeTargetTypeConstant.USERS.equals(targetType)) {
             List<UserInfo> users = userInfoMapper.selectList(
-                    new LambdaQueryWrapper<UserInfo>().in(UserInfo::getUid, targetIds)
+                    new LambdaQueryWrapper<UserInfo>().select(UserInfo::getUid).in(UserInfo::getUid, targetIds)
             );
             if (users == null) {
                 return List.of();
@@ -307,7 +307,7 @@ public class NoticeAdminServiceImpl implements NoticeAdminService {
             }
         }
         List<UserInfo> users = userInfoMapper.selectList(
-                new LambdaQueryWrapper<UserInfo>().in(UserInfo::getClassId, classIds)
+                new LambdaQueryWrapper<UserInfo>().select(UserInfo::getUid).in(UserInfo::getClassId, classIds)
         );
         if (users == null) {
             return List.of();
