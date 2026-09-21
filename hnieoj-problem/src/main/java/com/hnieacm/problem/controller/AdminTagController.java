@@ -6,8 +6,7 @@ import com.hnieacm.common.constant.PermissionConstant;
 import com.hnieacm.common.constant.RoleConstant;
 import com.hnieacm.common.result.Result;
 import com.hnieacm.problem.dto.SaveTagConfigRequest;
-import com.hnieacm.problem.dto.TagCreateRequest;
-import com.hnieacm.problem.dto.TagUpdateRequest;
+import com.hnieacm.problem.dto.TagSaveRequest;
 import com.hnieacm.problem.service.ProblemTagConfigService;
 import com.hnieacm.problem.service.TagService;
 import com.hnieacm.problem.vo.TagGroupVo;
@@ -62,7 +61,7 @@ public class AdminTagController {
     @Operation(summary = "创建标签")
     @SaCheckPermission(PermissionConstant.PROBLEM_CREATE)
     @PostMapping
-    public Result<Void> create(@Valid @RequestBody TagCreateRequest request) {
+    public Result<Void> create(@Valid @RequestBody TagSaveRequest request) {
         checkAdminRole();
         StpUtil.checkPermission(PermissionConstant.PROBLEM_CREATE);
         tagService.createTag(request);
@@ -73,7 +72,7 @@ public class AdminTagController {
     @SaCheckPermission(PermissionConstant.PROBLEM_UPDATE)
     @PutMapping("/{id}")
     public Result<Void> update(@PathVariable @Min(value = 1, message = "id 必须大于 0") Long id,
-                               @Valid @RequestBody TagUpdateRequest request) {
+                               @Valid @RequestBody TagSaveRequest request) {
         checkAdminRole();
         StpUtil.checkPermission(PermissionConstant.PROBLEM_UPDATE);
         tagService.updateTag(id, request);

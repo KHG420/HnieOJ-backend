@@ -5,8 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.hnieacm.common.exception.BizException;
 import com.hnieacm.common.result.ResultCode;
-import com.hnieacm.problem.dto.TagCreateRequest;
-import com.hnieacm.problem.dto.TagUpdateRequest;
+import com.hnieacm.problem.constant.TagFieldConstant;
+import com.hnieacm.problem.dto.TagSaveRequest;
 import com.hnieacm.problem.entity.ProblemTag;
 import com.hnieacm.problem.entity.Tag;
 import com.hnieacm.problem.mapper.ProblemTagMapper;
@@ -31,10 +31,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TagServiceImpl implements TagService {
 
-    private static final int MAX_NAME_LENGTH = 50;
-    private static final int MAX_COLOR_LENGTH = 20;
-    private static final int MAX_CATEGORY_LENGTH = 50;
-
     private final TagMapper tagMapper;
     private final ProblemTagMapper problemTagMapper;
 
@@ -48,13 +44,13 @@ public class TagServiceImpl implements TagService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void createTag(TagCreateRequest request) {
+    public void createTag(TagSaveRequest request) {
         if (request == null) {
             throw new BizException(ResultCode.BAD_REQUEST, "标签参数不能为空");
         }
         String name = normalizeName(request.getName());
-        String color = normalizeOptional(request.getColor(), MAX_COLOR_LENGTH, "color");
-        String category = normalizeOptional(request.getCategory(), MAX_CATEGORY_LENGTH, "category");
+        String color = normalizeOptional(request.getColor(), TagFieldConstant.COLOR_LENGTH, "color");
+        String category = normalizeOptional(request.getCategory(), TagFieldConstant.CATEGORY_LENGTH, "category");
 
         if (existsByName(name, null)) {
             throw new BizException(ResultCode.BAD_REQUEST, "标签名称已存在");
@@ -75,7 +71,7 @@ public class TagServiceImpl implements TagService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void updateTag(Long id, TagUpdateRequest request) {
+    public void updateTag(Long id, TagSaveRequest request) {
         if (id == null || id <= 0) {
             throw new BizException(ResultCode.BAD_REQUEST, "id 不合法");
         }
@@ -89,8 +85,8 @@ public class TagServiceImpl implements TagService {
         }
 
         String name = normalizeName(request.getName());
-        String color = normalizeOptional(request.getColor(), MAX_COLOR_LENGTH, "color");
-        String category = normalizeOptional(request.getCategory(), MAX_CATEGORY_LENGTH, "category");
+        String color = normalizeOptional(request.getColor(), TagFieldConstant.COLOR_LENGTH, "color");
+        String category = normalizeOptional(request.getCategory(), TagFieldConstant.CATEGORY_LENGTH, "category");
 
         if (existsByName(name, id)) {
             throw new BizException(ResultCode.BAD_REQUEST, "标签名称已存在");
@@ -152,8 +148,8 @@ public class TagServiceImpl implements TagService {
         if (StrUtil.isBlank(name)) {
             throw new BizException(ResultCode.BAD_REQUEST, "name 不能为空");
         }
-        if (name.length() > MAX_NAME_LENGTH) {
-            throw new BizException(ResultCode.BAD_REQUEST, "name 长度不能超过 " + MAX_NAME_LENGTH);
+        if (name.length() > TagFieldConstant.NAME_LENGTH) {
+            throw new BizException(ResultCode.BAD_REQUEST, TagFieldConstant.NAME_LENGTH_MESSAGE);
         }
         return name;
     }
@@ -161,7 +157,7 @@ public class TagServiceImpl implements TagService {
     private String normalizeOptional(String rawValue, int maxLength, String field) {
         String value = StrUtil.trimToNull(rawValue);
         if (value != null && value.length() > maxLength) {
-            throw new BizException(ResultCode.BAD_REQUEST, field + " 长度不能超过 " + maxLength);
+            throw new BizException(ResultCode.BAD_REQUEST, TagFieldConstant.lengthMessage(field, maxLength));
         }
         return value;
     }

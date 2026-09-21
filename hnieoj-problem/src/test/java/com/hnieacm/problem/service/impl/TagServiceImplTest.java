@@ -6,8 +6,8 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.hnieacm.common.exception.BizException;
 import com.hnieacm.common.result.ResultCode;
-import com.hnieacm.problem.dto.TagCreateRequest;
-import com.hnieacm.problem.dto.TagUpdateRequest;
+import com.hnieacm.problem.constant.TagFieldConstant;
+import com.hnieacm.problem.dto.TagSaveRequest;
 import com.hnieacm.problem.entity.ProblemTag;
 import com.hnieacm.problem.entity.Tag;
 import com.hnieacm.problem.mapper.ProblemTagMapper;
@@ -72,7 +72,7 @@ class TagServiceImplTest {
     @Test
     void createTrimsNameColorCategory() {
         when(tagMapper.selectCount(any())).thenReturn(0L);
-        TagCreateRequest request = new TagCreateRequest();
+        TagSaveRequest request = new TagSaveRequest();
         request.setName("  dp  ");
         request.setColor("  #fff  ");
         request.setCategory("  基础  ");
@@ -89,7 +89,7 @@ class TagServiceImplTest {
     @Test
     void createRejectsDuplicateName() {
         when(tagMapper.selectCount(any())).thenReturn(1L);
-        TagCreateRequest request = new TagCreateRequest();
+        TagSaveRequest request = new TagSaveRequest();
         request.setName("dp");
 
         assertThatThrownBy(() -> service.createTag(request))
@@ -101,12 +101,12 @@ class TagServiceImplTest {
 
     @Test
     void createRejectsBlankAndOverlongName() {
-        TagCreateRequest blank = new TagCreateRequest();
+        TagSaveRequest blank = new TagSaveRequest();
         blank.setName("   ");
         assertThatThrownBy(() -> service.createTag(blank)).isInstanceOf(BizException.class);
 
-        TagCreateRequest overlong = new TagCreateRequest();
-        overlong.setName("a".repeat(51));
+        TagSaveRequest overlong = new TagSaveRequest();
+        overlong.setName("a".repeat(TagFieldConstant.NAME_LENGTH + 1));
         assertThatThrownBy(() -> service.createTag(overlong)).isInstanceOf(BizException.class);
     }
 
@@ -114,7 +114,7 @@ class TagServiceImplTest {
     void updateUnknownIdReturnsNotFound() {
         when(tagMapper.selectById(99L)).thenReturn(null);
 
-        assertThatThrownBy(() -> service.updateTag(99L, new TagUpdateRequest()))
+        assertThatThrownBy(() -> service.updateTag(99L, new TagSaveRequest()))
                 .isInstanceOf(BizException.class)
                 .extracting(e -> ((BizException) e).getCode())
                 .isEqualTo(ResultCode.NOT_FOUND);
@@ -128,7 +128,7 @@ class TagServiceImplTest {
         when(tagMapper.selectById(1L)).thenReturn(existing);
         when(tagMapper.selectCount(any())).thenReturn(1L);
 
-        TagUpdateRequest request = new TagUpdateRequest();
+        TagSaveRequest request = new TagSaveRequest();
         request.setName("taken");
 
         assertThatThrownBy(() -> service.updateTag(1L, request))
@@ -146,7 +146,7 @@ class TagServiceImplTest {
         when(tagMapper.selectById(1L)).thenReturn(existing);
         when(tagMapper.selectCount(any())).thenReturn(0L);
 
-        TagUpdateRequest request = new TagUpdateRequest();
+        TagSaveRequest request = new TagSaveRequest();
         request.setName("  new  ");
         request.setColor("  ");
         request.setCategory("");
