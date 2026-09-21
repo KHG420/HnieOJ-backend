@@ -15,7 +15,8 @@ public interface AchievementFileService {
     String store(String uid, MultipartFile file);
 
     /**
-     * 按申请记录中的本地存储 key 读取附件，规范化后必须落在 upload-dir 以内
+     * 按申请记录中的本地存储值读取附件：剥离当前配置的 publicUrlPrefix 后仅接受裸 key，
+     * 规范化后必须落在 upload-dir 以内；外部 HTTP(S) 地址不做服务端代理下载
      */
     LocalFile loadLocal(String storedValue);
 

@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -77,6 +78,37 @@ class AchievementApplyServiceImplAdminFileTest {
         assertThat(result.getList().get(0).getFileUrl()).isEqualTo("/api/admin/achievements/11/file");
         assertThat(result.getList().get(1).getDescription()).isEqualTo("external description");
         assertThat(result.getList().get(1).getFileUrl()).isEqualTo("https://cdn.example.com/a.pdf");
+    }
+
+    @Test
+    void relativePublicUrlPrefixRoundTripsFromAdminListToDownload() {
+        AchievementFileProperties properties = new AchievementFileProperties();
+        properties.setUploadDir(uploadDir.toString());
+        properties.setPublicUrlPrefix("/files/achievements/");
+        AchievementFileServiceImpl prefixedFileService = new AchievementFileServiceImpl(properties);
+        AchievementApplyServiceImpl prefixedService = new AchievementApplyServiceImpl(
+                achievementApplyMapper, userAchievementMapper, userInfoMapper, prefixedFileService);
+
+        byte[] content = "relative prefix proof".getBytes(StandardCharsets.UTF_8);
+        String stored = prefixedFileService.store("20230001",
+                new MockMultipartFile("file", "proof.txt", "text/plain", content));
+        assertThat(stored).startsWith("/files/achievements/");
+
+        AchievementApplyAdminVo vo = vo(31L, stored, "relative prefix description");
+        Page<AchievementApplyAdminVo> page = new Page<>(1, 10);
+        page.setRecords(List.of(vo));
+        page.setTotal(1);
+        when(achievementApplyMapper.selectAdminApplyPage(any(), any(), any(), any())).thenReturn(page);
+        when(achievementApplyMapper.selectById(31L)).thenReturn(apply(31L, stored));
+
+        PageVo<AchievementApplyAdminVo> result = prefixedService.listForAdmin(1, 10, null, null, null);
+
+        assertThat(result.getList().get(0).getFileUrl()).isEqualTo("/api/admin/achievements/31/file");
+
+        AchievementApplyService.AchievementFileDownload download = prefixedService.downloadFile(31L);
+        assertThat(download.content()).isEqualTo(content);
+        assertThat(download.filename()).isNotBlank();
+        assertThat(download.contentType()).isEqualTo("application/octet-stream");
     }
 
     @Test
