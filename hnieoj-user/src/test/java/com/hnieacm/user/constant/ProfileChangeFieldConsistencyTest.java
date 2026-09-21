@@ -121,9 +121,9 @@ class ProfileChangeFieldConsistencyTest {
     @Test
     void retiredTableIsNeitherCreatedNorLeftBehind() {
         String sql = readInitScript();
-        // 合并两套流程后不得再建 user_profile_change_apply
+        // 已退役的旧表不得再被创建
         assertThat(sql).doesNotContain("CREATE TABLE `user_profile_change_apply`");
-        // 还必须显式 DROP：本脚本对已存在的库是「重跑」，只删 CREATE 会让上一版建出的表变成孤儿
+        // 还必须显式 DROP：本脚本对已存在的库是「重跑」，只删 CREATE 会让旧表变成孤儿
         assertThat(sql).contains("DROP TABLE IF EXISTS `user_profile_change_apply`");
     }
 }

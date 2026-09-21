@@ -4,8 +4,8 @@ package com.hnieacm.user.constant;
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/21
  * @Description: 资料变更申请可受理的字段全集（身份字段 + 联系/社交字段）。
- * <p>合并两套流程（BE-03.6 / W5）后的单一字段清单：原身份流程只认前 4 个，
- * 原通用资料流程认后 8 个，两者并存且可互相覆盖；现在由同一个按 id 审批的流程受理全部字段。</p>
+ * <p>这是「可申请变更的字段」的唯一清单：{@code ProfileSnapshotVo} 的字段、申请里能出现的字段、
+ * 审批时逐字段做原值一致性校验的字段都以本枚举为准。</p>
  *
  * <p>{@code ddlMaxLength} 是 {@code user_info} 对应列宽，供一致性测试与 DDL 对齐；
  * 业务校验另见 {@code ProfileChangeServiceImpl}（username 走可配置的 {@code UserManageProperties}，

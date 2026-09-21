@@ -11,16 +11,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/21
- * @Description: 资料快照的字段级语义（BE-03.6 / W5 合并两套流程的基础）。
- * <p>重点是历史 JSON 兼容：合并前写入的 original/proposed 只含 4 个身份字段，
- * 反序列化后联系/社交字段为 null，两侧同为 null 必须视为「未申请变更」，
- * 否则既有待审记录会凭空多出一堆待改字段。</p>
+ * @Description: 资料快照的字段级语义。
+ * <p>重点是 JSON 兼容性：只含部分字段的 original/proposed 反序列化后，其余字段为 null，
+ * 两侧同为 null 必须视为「未申请变更」，否则既有待审记录会凭空多出一堆待改字段。</p>
  */
 class ProfileSnapshotVoTest {
 
     @Test
     void legacyIdentityOnlyJsonYieldsOnlyIdentityChanges() {
-        // 合并前写入的记录：联系/社交字段两边都是 null
+        // 只写入身份字段的快照：联系/社交字段两边都是 null
         ProfileSnapshotVo original = new ProfileSnapshotVo();
         original.setRealname("Old");
         original.setCollegeId(1L);

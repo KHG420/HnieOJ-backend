@@ -31,9 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
  * @Author: HaoRan_Lyu
  * @Date: 2026/02/14
  * @Description: 用户配置文件和用户查询 API（需要登录）
- * <p>资料变更申请已合并为唯一流程（BE-03.6 / W5），原 {@code /profile/change-requests}
- * 两个端点随 user_profile_change_apply 流程一并退役，统一走
- * {@code /api/user/profile-change-requests}（{@link ProfileChangeController}）。</p>
+ * <p>资料变更申请不在本控制器：统一走 {@code /api/user/profile-change-requests}
+ * （{@link ProfileChangeController}）。</p>
  */
 @Tag(name = "User Profile")
 @Validated

@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/21
- * @Description: 按 id 批量查询班级（W6）回归：命中/未命中语义、去重、非法 id 与空入参。
+ * @Description: 按 id 批量查询班级回归：命中/未命中语义、去重、非法 id 与空入参。
  */
 class BaseDataServiceImplListClassesByIdsTest {
 

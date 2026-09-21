@@ -155,7 +155,7 @@ class UserContextStartupTest {
     }
 
     /**
-     * BE-05.4 把 {@code AuthInternalFeignClient} 上提到 common 后，它出现在 user 服务的 classpath 上，
+     * {@code com.hnieacm.common.feign.AuthInternalFeignClient} 在 user 服务的 classpath 上，
      * 但 user 服务是它的 {@code name} 指向方，不该给自己建代理。这里把「共享契约在 classpath 上」
      * 与「本进程确实会注册它」两件事分开断言，避免用 classpath 扫描替代注册范围判断。
      */

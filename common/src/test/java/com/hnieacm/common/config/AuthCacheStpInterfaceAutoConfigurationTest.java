@@ -20,7 +20,7 @@ import static org.mockito.Mockito.mock;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/21
- * @Description: 共用 {@link StpInterface} 自动配置的装配边界（BE-05.4）。
+ * @Description: 共用 {@link StpInterface} 自动配置的装配边界。
  * <p>这三条分支正是各服务能否继续鉴权的分界：业务服务必须拿到共用实现；
  * hnieoj-user 必须让自带的（认证缓存生产方）优先；gateway（WebFlux）必须完全不加载。</p>
  */

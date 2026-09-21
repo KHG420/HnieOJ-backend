@@ -23,10 +23,8 @@ import static org.mockito.Mockito.when;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/20
- * @Description: 共用认证缓存读取器回归（BE-05.4）：ADMIN/ROOT 从认证缓存命中；普通学生角色不会被提升；
+ * @Description: 共用认证缓存读取器回归：ADMIN/ROOT 从认证缓存命中；普通学生角色不会被提升；
  * 缓存缺失且内部刷新失败时按最小权限回退为 STUDENT（fail-closed）。
- * <p>原为 hnieoj-discussion 的 StpInterfaceImplTest，实现上提到 common 后一并迁移，
- * 避免「实现只有一份、测试却仍指向已删除的服务内副本」。</p>
  */
 class AuthCacheStpInterfaceTest {
 

@@ -20,17 +20,16 @@ import java.util.List;
  * @Description: Sa-Token 角色/权限查询器（MVC 业务服务共用实现）。
  * <p>优先从 Redis 中的网关认证缓存读取；缓存键缺失时通过内部认证 API 刷新一次。</p>
  *
- * <h3>为什么在 common（BE-05.4）</h3>
- * 原为 problem / contest / training / discussion / announcement / submission 六个服务的逐字拷贝，
- * 任一处的缓存语义修正都要改六遍，且漏改会让各服务的鉴权行为悄悄分叉。
+ * <p>放在 common 是因为各 MVC 业务服务需要完全相同的缓存读取语义：任何一处单独实现都会让
+ * 各服务的鉴权行为随缓存细节逐渐分叉。</p>
  *
- * <h3>哪些实现刻意没有合并进来</h3>
+ * <p>项目内另有两处 {@code StpInterface} 实现，职责不同，不共用本类：</p>
  * <ul>
- *   <li><b>hnieoj-user</b> 的 {@code com.hnieacm.auth.auth.StpInterfaceImpl}：它是认证缓存的
- *       <i>生产方</i>，缓存 miss 时直接调本进程的 {@code UserAuthCacheService} 重建缓存，
- *       而不是回调 {@code hnieoj-user} 的 Feign 接口（那等于调用自己）。职责不同，故保留。</li>
- *   <li><b>gateway</b> 的 {@code com.hnieacm.gateway.auth.StpInterfaceImpl}：网关是 WebFlux，
- *       只读网关本地缓存且角色缓存缺失时直接失败，不触发跨服务刷新。语义不同，故保留。</li>
+ *   <li>{@code com.hnieacm.auth.auth.StpInterfaceImpl}（hnieoj-user）：它是认证缓存的
+ *       <i>生产方</i>，缓存缺失时直接调本进程的 {@code UserAuthCacheService} 重建缓存，
+ *       不会回调自己的 Feign 接口。</li>
+ *   <li>{@code com.hnieacm.gateway.auth.StpInterfaceImpl}：网关是 WebFlux，只读网关本地缓存，
+ *       角色缓存缺失时直接失败，不触发跨服务刷新。</li>
  * </ul>
  *
  * <p>本类不标 {@code @Component}：它在 common 包下，不在各服务 {@code @SpringBootApplication}

@@ -9,9 +9,9 @@ import com.hnieacm.user.vo.ProfileChangeVo;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/20
- * @Description: 用户资料变更申请服务（唯一的资料变更流程，按申请 id 审批）。
- * <p>合并两套流程（BE-03.6 / W5）后，本服务受理全部可变更字段：
- * 身份字段（实名/学院/年级/班级）+ 联系/社交字段（用户名/邮箱/手机号/头像/QQ/CF/GitHub/博客）。</p>
+ * @Description: 用户资料变更申请服务（项目内唯一的资料变更流程，按申请 id 审批）。
+ * <p>受理全部可变更字段：身份字段（实名/学院/年级/班级）
+ * 与联系/社交字段（用户名/邮箱/手机号/头像/QQ/CF/GitHub/博客）。</p>
  */
 public interface ProfileChangeService {
 
