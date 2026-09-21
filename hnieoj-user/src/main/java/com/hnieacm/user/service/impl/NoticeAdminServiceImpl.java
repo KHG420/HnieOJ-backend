@@ -23,7 +23,6 @@ import com.hnieacm.user.vo.UserNoticeDetailVo;
 import com.hnieacm.user.vo.UserNoticeListVo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -48,6 +47,13 @@ public class NoticeAdminServiceImpl implements NoticeAdminService {
     private static final int MAX_PAGE_SIZE = 100;
 
     private static final int MAX_TARGET_COUNT = 1000;
+
+    /**
+     * 单次发布展开后的收件人总数上限：防止 CLASSES 目标展开成全校用户后产生数万行单事务写入。
+     */
+    private static final int MAX_RECIPIENT_COUNT = 5000;
+
+    private static final int INSERT_BATCH_SIZE = 500;
 
     private final UserNoticeMapper userNoticeMapper;
     private final UserMessageMapper userMessageMapper;
@@ -128,6 +134,8 @@ public class NoticeAdminServiceImpl implements NoticeAdminService {
         notice.setContent(request.getContent());
         notice.setTargetType(target.targetType());
         notice.setTargetSpec(writeTargetSpec(target.targetIds()));
+        // 置 null 后 MyBatis-Plus 不写入该列，交由 DDL 的 ON UPDATE CURRENT_TIMESTAMP 维护
+        notice.setGmtModified(null);
         userNoticeMapper.updateById(notice);
     }
 
@@ -158,25 +166,28 @@ public class NoticeAdminServiceImpl implements NoticeAdminService {
         if (recipients.isEmpty()) {
             throw new BizException(ResultCode.BAD_REQUEST, "发布失败：没有有效收件人");
         }
+        if (recipients.size() > MAX_RECIPIENT_COUNT) {
+            throw new BizException(ResultCode.BAD_REQUEST,
+                    "展开后的收件人总数不能超过 " + MAX_RECIPIENT_COUNT + "，请拆分通知批次");
+        }
 
         LocalDateTime now = LocalDateTime.now();
-        for (String recipientUid : recipients) {
+        List<UserMessage> messages = recipients.stream().map(recipientUid -> {
             UserMessage message = new UserMessage();
             message.setNoticeId(notice.getId());
             message.setRecipientUid(recipientUid);
             message.setTitle(notice.getTitle());
             message.setContent(notice.getContent());
             message.setCreatedAt(now);
-            try {
-                userMessageMapper.insert(message);
-            } catch (DuplicateKeyException e) {
-                // 唯一键 notice_id + recipient_uid 兜底，保证重复投递幂等。
-                log.debug("Duplicate message skipped, noticeId: {}, uid: {}", notice.getId(), recipientUid);
-            }
-        }
+            return message;
+        }).toList();
+        // 批量插入（分批 flush），避免数万次单条 INSERT 的长事务持锁；
+        // 唯一键 uk_notice_recipient + 通知行锁 + PUBLISHED 状态判断共同保证不重复投递。
+        userMessageMapper.insert(messages, INSERT_BATCH_SIZE);
 
         notice.setStatus(NoticeStatusConstant.PUBLISHED);
         notice.setPublishedAt(now);
+        notice.setGmtModified(null);
         userNoticeMapper.updateById(notice);
         log.info("Notice published, id: {}, recipients: {}", notice.getId(), recipients.size());
     }

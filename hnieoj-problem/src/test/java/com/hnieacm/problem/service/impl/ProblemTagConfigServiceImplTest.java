@@ -53,6 +53,8 @@ class ProblemTagConfigServiceImplTest {
                 tag(1L, "math", "基础"),
                 tag(2L, "dp", "算法")
         ));
+        // deleteRemovedUnusedTags 先按 id 锁定 tag 行（FOR UPDATE），返回被删的 dp
+        when(tagMapper.selectOne(any())).thenReturn(tag(2L, "dp", "算法"));
         when(problemTagMapper.selectCount(org.mockito.ArgumentMatchers.<Wrapper<ProblemTag>>any())).thenReturn(0L);
 
         service.save(request(group("算法", List.of("math", "graph"))));
@@ -69,6 +71,8 @@ class ProblemTagConfigServiceImplTest {
     void shouldRejectRemovingUsedTag() {
         ProblemTagConfigServiceImpl service = new ProblemTagConfigServiceImpl(tagMapper, problemTagMapper);
         when(tagMapper.selectList(any())).thenReturn(List.of(tag(1L, "dp", "算法")));
+        // deleteRemovedUnusedTags 先按 id 锁定 tag 行（FOR UPDATE），返回被删的 dp
+        when(tagMapper.selectOne(any())).thenReturn(tag(1L, "dp", "算法"));
         when(problemTagMapper.selectCount(org.mockito.ArgumentMatchers.<Wrapper<ProblemTag>>any())).thenReturn(1L);
 
         assertThatThrownBy(() -> service.save(request(group("算法", List.of("graph")))))

@@ -32,6 +32,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
@@ -137,7 +138,11 @@ class NoticeAdminServiceImplTest {
         verify(userNoticeMapper).selectOne(wrapperCaptor.capture());
         assertThat(wrapperCaptor.getValue().getTargetSql()).contains("FOR UPDATE");
 
-        verify(userMessageMapper, times(2)).insert(any(UserMessage.class));
+        // 收件人快照批量写入：一次批量调用包含 2 名收件人
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<UserMessage>> messagesCaptor = ArgumentCaptor.forClass(List.class);
+        verify(userMessageMapper).insert(messagesCaptor.capture(), anyInt());
+        assertThat(messagesCaptor.getValue()).hasSize(2);
         assertThat(notice.getStatus()).isEqualTo(NoticeStatusConstant.PUBLISHED);
         assertThat(notice.getPublishedAt()).isNotNull();
         verify(userNoticeMapper).updateById(notice);

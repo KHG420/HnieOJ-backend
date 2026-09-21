@@ -266,7 +266,8 @@ public final class ProblemServiceSupport {
      * @Date 2026/02/21
      */
     private static Map<String, Long> ensureTags(TagMapper tagMapper, List<String> names) {
-        // 事务内对已存在的 tag 行加锁（FOR UPDATE），与 TagServiceImpl.deleteTag 使用同一把行锁，
+        // 事务内对已存在的 tag 行加锁（FOR UPDATE），与 TagServiceImpl.deleteTag、
+        // ProblemTagConfigServiceImpl.deleteRemovedUnusedTags 使用同一把行锁，
         // 保证“删除标签”和“题目维护标签关联”不会交错产生悬挂的 problem_tag 引用。
         List<Tag> existed = tagMapper.selectList(
                 new LambdaQueryWrapper<Tag>().in(Tag::getName, names).last("FOR UPDATE")
@@ -283,8 +284,22 @@ public final class ProblemServiceSupport {
             t.setName(name);
             try {
                 tagMapper.insert(t);
-            } catch (DuplicateKeyException ignored) {
-                // 忽略并发场景中的重复写入
+                nameToId.put(name, t.getId());
+            } catch (DuplicateKeyException e) {
+                // 并发事务已插入同名标签：REPEATABLE READ 下普通 SELECT 可能沿用旧快照看不到新行，
+                // 必须用当前读（FOR UPDATE）取回；读不到说明对方回滚，重试一次插入，仍失败则不静默吞错。
+                Tag concurrent = tagMapper.selectOne(
+                        new LambdaQueryWrapper<Tag>().eq(Tag::getName, name).last("FOR UPDATE"));
+                if (concurrent != null && concurrent.getId() != null) {
+                    nameToId.put(concurrent.getName(), concurrent.getId());
+                    continue;
+                }
+                try {
+                    tagMapper.insert(t);
+                    nameToId.put(name, t.getId());
+                } catch (DuplicateKeyException retryFailure) {
+                    throw new BizException(ResultCode.INTERNAL_ERROR, "标签写入并发冲突，请重试：" + name);
+                }
             }
         }
 

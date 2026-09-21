@@ -35,7 +35,11 @@ import java.util.Objects;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/06/09
- * @Description: 用户资料修改申请服务实现
+ * @Description: 用户资料修改申请服务实现（通用资料流程，按 uid 审批）。
+ * <p>流程分工：本流程只受理联系/社交字段（username/email/phone/avatar/qq/cf/github/blog）；
+ * 身份字段（realname/college/grade/class）由 {@link ProfileChangeServiceImpl} 的
+ * 身份资料变更流程（user_profile_change，按 id 审批，含原值一致性校验）独占受理。
+ * 两套流程写同一 user_info 行，审批前都须在事务内锁定用户行。</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -56,6 +60,7 @@ public class UserProfileChangeServiceImpl implements UserProfileChangeService {
             throw new BizException(ResultCode.BAD_REQUEST, "请求参数不能为空");
         }
         userInfoManager.getUserByUid(normalizedUid);
+        rejectIdentityFields(request);
         long pendingCount = changeApplyMapper.selectCount(new LambdaQueryWrapper<UserProfileChangeApply>()
                 .eq(UserProfileChangeApply::getUid, normalizedUid)
                 .eq(UserProfileChangeApply::getStatus, UserProfileChangeStatus.PENDING));
@@ -192,15 +197,25 @@ public class UserProfileChangeServiceImpl implements UserProfileChangeService {
         }
     }
 
+    /**
+     * 身份字段由身份资料变更流程独占受理；本流程拒绝携带身份字段的请求，
+     * 避免两条流程同时待审、串行审批时互相覆盖同一 user_info 行的身份字段。
+     */
+    private void rejectIdentityFields(UserProfileChangeApplyRequest request) {
+        if (StrUtil.isNotBlank(request.getRealname())
+                || request.getCollegeId() != null
+                || request.getClassId() != null
+                || StrUtil.isNotBlank(request.getGrade())) {
+            throw new BizException(ResultCode.BAD_REQUEST,
+                    "实名/学院/年级/班级请通过身份资料变更申请（/api/user/profile-change-requests）提交");
+        }
+    }
+
     private boolean hasAnyChange(UserProfileChangeApplyRequest request) {
         return StrUtil.isNotBlank(request.getUsername())
                 || StrUtil.isNotBlank(request.getEmail())
                 || StrUtil.isNotBlank(request.getPhone())
                 || StrUtil.isNotBlank(request.getAvatar())
-                || request.getCollegeId() != null
-                || request.getClassId() != null
-                || StrUtil.isNotBlank(request.getGrade())
-                || StrUtil.isNotBlank(request.getRealname())
                 || StrUtil.isNotBlank(request.getQq())
                 || StrUtil.isNotBlank(request.getCfUsername())
                 || StrUtil.isNotBlank(request.getGithub())

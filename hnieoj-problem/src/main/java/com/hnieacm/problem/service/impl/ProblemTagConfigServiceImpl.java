@@ -116,6 +116,13 @@ public class ProblemTagConfigServiceImpl implements ProblemTagConfigService {
             if (desiredNames.contains(tag.getName())) {
                 continue;
             }
+            // 与 TagServiceImpl.deleteTag、ensureTags 使用同一把 tag 行锁串行化，
+            // 避免删除与题目维护标签关联并发时产生悬挂的 problem_tag 引用。
+            Tag locked = tagMapper.selectOne(
+                    new LambdaQueryWrapper<Tag>().eq(Tag::getId, tag.getId()).last("FOR UPDATE"));
+            if (locked == null) {
+                continue;
+            }
             Long usedCount = problemTagMapper.selectCount(new LambdaQueryWrapper<ProblemTag>()
                     .eq(ProblemTag::getTid, tag.getId()));
             if (usedCount != null && usedCount > 0) {

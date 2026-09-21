@@ -37,7 +37,10 @@ import java.util.Objects;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/20
- * @Description: 用户身份资料变更申请服务实现
+ * @Description: 用户身份资料变更申请服务实现（身份流程，按 id 审批，含原值一致性校验）。
+ * <p>流程分工：本流程独占受理身份字段（realname/college/grade/class）；
+ * 联系/社交字段（username/email/phone/avatar/qq/cf/github/blog）由
+ * {@link UserProfileChangeServiceImpl} 的通用资料流程（按 uid 审批）受理。</p>
  */
 @Slf4j
 @Service
@@ -177,6 +180,8 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
         change.setReviewerUid(reviewerUid);
         change.setReviewReason(normalizeReviewReason(reason));
         change.setReviewAt(now);
+        // 置 null 后 MyBatis-Plus 不写入该列，交由 DDL 的 ON UPDATE CURRENT_TIMESTAMP 维护
+        change.setGmtModified(null);
         userProfileChangeMapper.updateById(change);
 
         // 身份信息变更：提交后清理鉴权缓存（不改动任何角色/权限行）。
@@ -204,6 +209,7 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
         change.setReviewerUid(reviewerUid);
         change.setReviewReason(normalizedReason);
         change.setReviewAt(LocalDateTime.now());
+        change.setGmtModified(null);
         userProfileChangeMapper.updateById(change);
         log.info("Profile change rejected, id: {}, uid: {}, reviewer: {}", id, change.getUid(), reviewerUid);
     }
