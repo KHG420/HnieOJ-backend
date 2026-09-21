@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
@@ -23,6 +24,7 @@ import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -141,22 +143,59 @@ class UserContextStartupTest {
     }
 
     @Test
-    void mergedProcessHasNoSelfOrRetiredFeignClient() throws Exception {
-        Set<String> feignTargets = scanFeignClientNames();
+    void mergedProcessHasNoSelfOrRetiredFeignClient() {
+        Set<String> registeredTargets = scanRegisteredFeignClientNames();
 
         // 认证/成就已合并进 user 进程，本地调用改为 Service 直调；
         // 仍需保留跨领域的 SubmissionInternalFeignClient（hnieoj-submission），且不得残留旧服务目标。
-        assertThat(feignTargets)
+        assertThat(registeredTargets)
                 .isNotEmpty()
                 .contains("hnieoj-submission")
                 .doesNotContain("hnieoj-auth", "hnieoj-achievement", "hnieoj-judge", "hnieoj-user");
     }
 
     /**
+     * BE-05.4 把 {@code AuthInternalFeignClient} 上提到 common 后，它出现在 user 服务的 classpath 上，
+     * 但 user 服务是它的 {@code name} 指向方，不该给自己建代理。这里把「共享契约在 classpath 上」
+     * 与「本进程确实会注册它」两件事分开断言，避免用 classpath 扫描替代注册范围判断。
+     */
+    @Test
+    void sharedAuthClientIsOnClasspathButNotRegisteredInUserProcess() {
+        assertThat(scanClasspathFeignClientNames()).contains("hnieoj-user");
+        assertThat(scanRegisteredFeignClientNames()).doesNotContain("hnieoj-user");
+    }
+
+    /**
+     * 本进程实际会注册的 Feign 客户端：由 {@link EnableFeignClients} 的 basePackages 决定。
+     * <p>不能再用「扫描整个 {@code com.hnieacm} 包」来近似：common 里的共享 Feign 契约
+     * （被其它服务使用）也在同一 classpath 上，却不在 user 服务的扫描范围内。</p>
+     */
+    private Set<String> scanRegisteredFeignClientNames() {
+        EnableFeignClients enableFeignClients = UserApplication.class.getAnnotation(EnableFeignClients.class);
+        assertThat(enableFeignClients).as("UserApplication 必须显式声明 @EnableFeignClients").isNotNull();
+
+        String[] basePackages = enableFeignClients.basePackages().length > 0
+                ? enableFeignClients.basePackages()
+                : enableFeignClients.value();
+        assertThat(basePackages).isNotEmpty();
+
+        Set<String> names = new LinkedHashSet<>();
+        for (String basePackage : basePackages) {
+            names.addAll(scanFeignClientNames(basePackage));
+        }
+        return names;
+    }
+
+    /** 仅用于对照：整个 com.hnieacm 包（含 common 依赖）上的 @FeignClient 目标 */
+    private Set<String> scanClasspathFeignClientNames() {
+        return scanFeignClientNames("com.hnieacm");
+    }
+
+    /**
      * 默认的 {@link ClassPathScanningCandidateComponentProvider} 会过滤掉接口，
      * 而 FeignClient 正是接口，因此覆写候选判定以按真实元数据扫描。
      */
-    private Set<String> scanFeignClientNames() throws Exception {
+    private Set<String> scanFeignClientNames(String basePackage) {
         ClassPathScanningCandidateComponentProvider scanner =
                 new ClassPathScanningCandidateComponentProvider(false) {
                     @Override
@@ -166,7 +205,7 @@ class UserContextStartupTest {
                 };
         scanner.addIncludeFilter(new AnnotationTypeFilter(FeignClient.class));
 
-        return scanner.findCandidateComponents("com.hnieacm").stream()
+        return scanner.findCandidateComponents(basePackage).stream()
                 .map(definition -> {
                     try {
                         Class<?> type = Class.forName(definition.getBeanClassName());
@@ -175,6 +214,6 @@ class UserContextStartupTest {
                         throw new IllegalStateException(e);
                     }
                 })
-                .collect(Collectors.toSet());
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 }

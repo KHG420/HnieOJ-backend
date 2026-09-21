@@ -1,30 +1,44 @@
-package com.hnieacm.problem.auth;
+package com.hnieacm.common.auth;
 
 import cn.dev33.satoken.stp.StpInterface;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hnieacm.common.constant.AuthCacheConstant;
 import com.hnieacm.common.constant.RoleConstant;
+import com.hnieacm.common.feign.AuthInternalFeignClient;
 import com.hnieacm.common.result.ResultCode;
-import com.hnieacm.problem.feign.AuthInternalFeignClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
 
 /**
  * @Author: HaoRan_Lyu
- * @Date: 2026/02/20
- * @Description: Sa-Token 角色/权限查询接口的 MVC 服务实现
- * <p>优先从 Redis 中的网关认证缓存读取。当缓存键缺失时，通过内部认证 API 刷新一次</p>
+ * @Date: 2026/09/21
+ * @Description: Sa-Token 角色/权限查询器（MVC 业务服务共用实现）。
+ * <p>优先从 Redis 中的网关认证缓存读取；缓存键缺失时通过内部认证 API 刷新一次。</p>
+ *
+ * <h3>为什么在 common（BE-05.4）</h3>
+ * 原为 problem / contest / training / discussion / announcement / submission 六个服务的逐字拷贝，
+ * 任一处的缓存语义修正都要改六遍，且漏改会让各服务的鉴权行为悄悄分叉。
+ *
+ * <h3>哪些实现刻意没有合并进来</h3>
+ * <ul>
+ *   <li><b>hnieoj-user</b> 的 {@code com.hnieacm.auth.auth.StpInterfaceImpl}：它是认证缓存的
+ *       <i>生产方</i>，缓存 miss 时直接调本进程的 {@code UserAuthCacheService} 重建缓存，
+ *       而不是回调 {@code hnieoj-user} 的 Feign 接口（那等于调用自己）。职责不同，故保留。</li>
+ *   <li><b>gateway</b> 的 {@code com.hnieacm.gateway.auth.StpInterfaceImpl}：网关是 WebFlux，
+ *       只读网关本地缓存且角色缓存缺失时直接失败，不触发跨服务刷新。语义不同，故保留。</li>
+ * </ul>
+ *
+ * <p>本类不标 {@code @Component}：它在 common 包下，不在各服务 {@code @SpringBootApplication}
+ * 的扫描范围里，由 {@code AuthCacheStpInterfaceAutoConfiguration} 注册。</p>
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
-public class StpInterfaceImpl implements StpInterface {
+public class AuthCacheStpInterface implements StpInterface {
 
     private static final TypeReference<List<String>> LIST_STRING_TYPE = new TypeReference<>() {
     };
@@ -36,6 +50,7 @@ public class StpInterfaceImpl implements StpInterface {
     @Override
     public List<String> getPermissionList(Object loginId, String loginType) {
         String uid = String.valueOf(loginId);
+        // permission 允许为空，但键缺失时仍需触发刷新，否则会把「缓存没建」误判成「没有权限」
         return readOrRefresh(AuthCacheConstant.PERMISSION_CACHE_PREFIX + uid, uid, true);
     }
 
@@ -85,4 +100,3 @@ public class StpInterfaceImpl implements StpInterface {
         }
     }
 }
-

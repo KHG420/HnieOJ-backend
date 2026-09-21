@@ -1,10 +1,10 @@
-package com.hnieacm.discussion.auth;
+package com.hnieacm.common.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hnieacm.common.constant.AuthCacheConstant;
 import com.hnieacm.common.constant.RoleConstant;
 import com.hnieacm.common.result.Result;
-import com.hnieacm.discussion.feign.AuthInternalFeignClient;
+import com.hnieacm.common.feign.AuthInternalFeignClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -23,15 +23,17 @@ import static org.mockito.Mockito.when;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/20
- * @Description: 讨论服务角色缓存回归：ADMIN/ROOT 从认证缓存命中；普通学生角色不会被提升；
+ * @Description: 共用认证缓存读取器回归（BE-05.4）：ADMIN/ROOT 从认证缓存命中；普通学生角色不会被提升；
  * 缓存缺失且内部刷新失败时按最小权限回退为 STUDENT（fail-closed）。
+ * <p>原为 hnieoj-discussion 的 StpInterfaceImplTest，实现上提到 common 后一并迁移，
+ * 避免「实现只有一份、测试却仍指向已删除的服务内副本」。</p>
  */
-class StpInterfaceImplTest {
+class AuthCacheStpInterfaceTest {
 
     private StringRedisTemplate stringRedisTemplate;
     private ValueOperations<String, String> valueOperations;
     private AuthInternalFeignClient authInternalFeignClient;
-    private StpInterfaceImpl stpInterface;
+    private AuthCacheStpInterface stpInterface;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
@@ -40,7 +42,7 @@ class StpInterfaceImplTest {
         valueOperations = mock(ValueOperations.class);
         when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
         authInternalFeignClient = mock(AuthInternalFeignClient.class);
-        stpInterface = new StpInterfaceImpl(stringRedisTemplate, new ObjectMapper(), authInternalFeignClient);
+        stpInterface = new AuthCacheStpInterface(stringRedisTemplate, new ObjectMapper(), authInternalFeignClient);
     }
 
     private static String rolesKey(String uid) {

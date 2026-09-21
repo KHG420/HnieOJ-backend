@@ -13,7 +13,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
  */
 @SpringBootApplication(scanBasePackages = "com.hnieacm")
 @EnableDiscoveryClient
-@EnableFeignClients(basePackages = "com.hnieacm.contest.feign")
+@EnableFeignClients(basePackages = {"com.hnieacm.contest.feign", "com.hnieacm.common.feign"})
 @MapperScan("com.hnieacm.contest.mapper")
 public class ContestApplication {
     public static void main(String[] args) {

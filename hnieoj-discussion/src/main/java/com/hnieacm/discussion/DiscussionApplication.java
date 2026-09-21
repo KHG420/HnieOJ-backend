@@ -13,7 +13,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
  */
 @SpringBootApplication(scanBasePackages = "com.hnieacm")
 @EnableDiscoveryClient
-@EnableFeignClients(basePackages = "com.hnieacm.discussion.feign")
+@EnableFeignClients(basePackages = {"com.hnieacm.discussion.feign", "com.hnieacm.common.feign"})
 @MapperScan("com.hnieacm.discussion.mapper")
 public class DiscussionApplication {
     public static void main(String[] args) {
