@@ -36,8 +36,9 @@ import static org.mockito.Mockito.when;
 class TagServiceImplTest {
 
     static {
-        // 纯单元测试没有 MyBatis 会话，手动初始化 Tag 的 TableInfo 以便检查 LambdaWrapper 生成的 SQL
+        // 纯单元测试没有 MyBatis 会话，手动初始化 Tag/ProblemTag 的 TableInfo 以便检查 LambdaWrapper 生成的 SQL
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), Tag.class);
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), ProblemTag.class);
     }
 
     private TagMapper tagMapper;
