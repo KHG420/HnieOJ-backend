@@ -30,6 +30,18 @@ public interface BaseDataService {
     List<IdNameVo> listClasses(Long collegeId, String grade);
 
     /**
+     * 按班级 id 批量查询班级（id → name 反查）。
+     * <p>替代前端「遍历学院×年级×班级」的反查：一次请求拿到全部已选班级的名称，
+     * 不再随学院/年级数量线性放大请求数。</p>
+     * <p>语义：库中不存在的 id <b>跳过不报错</b>，调用方对未命中的 id 保留原 id 展示、不阻断编辑；
+     * 但 {@code null} 或 {@code <= 0} 的非法 id 视为调用方缺陷，抛 400。</p>
+     *
+     * @param ids 班级 id 列表，允许重复；去重后查询
+     * @return 命中的班级（按 id 升序），未命中的 id 不出现在结果里
+     */
+    List<IdNameVo> listClassesByIds(List<Long> ids);
+
+    /**
      * 获取班级老师列表（负责教师）
      */
     List<ClassTeacherVo> listTeachers(Long classId);

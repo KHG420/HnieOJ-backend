@@ -32,6 +32,12 @@ class BaseDataControllerAuthTest {
         assertThat(loginCheckOn("listTas")).isTrue();
     }
 
+    @Test
+    void classByIdBatchQueryRequiresLogin() {
+        // W6 新增的按 id 批量反查供管理端编辑页使用，不应扩大匿名可见面
+        assertThat(loginCheckOn("listClassesByIds")).isTrue();
+    }
+
     private static boolean loginCheckOn(String methodName) {
         Method method = Arrays.stream(BaseDataController.class.getDeclaredMethods())
                 .filter(candidate -> candidate.getName().equals(methodName) && candidate.getParameterCount() >= 0)
