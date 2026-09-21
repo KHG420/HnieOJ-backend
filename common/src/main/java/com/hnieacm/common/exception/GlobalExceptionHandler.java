@@ -5,6 +5,8 @@ import com.hnieacm.common.result.ResultCode;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
@@ -20,9 +22,12 @@ import java.util.stream.Collectors;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/02/10
- * @Description: 全局异常处理器
+ * @Description: 全局异常处理器。
+ * <p>兜底的 {@code Exception.class} 会匹配任意异常，因此必须排在专用处理器
+ * （如 {@link SaTokenExceptionHandler}）之后，否则鉴权拒绝会被转成业务码 500。</p>
  */
 @Slf4j
+@Order(Ordered.LOWEST_PRECEDENCE)
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
