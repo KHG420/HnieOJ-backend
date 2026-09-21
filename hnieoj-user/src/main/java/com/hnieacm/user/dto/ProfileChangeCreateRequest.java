@@ -1,5 +1,6 @@
 package com.hnieacm.user.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -15,7 +16,7 @@ import lombok.Data;
 @Data
 public class ProfileChangeCreateRequest {
 
-    /** 身份字段：仅在确实要变更身份信息时成组提交 */
+    /** 身份字段：按需提交，与当前资料快照合并后整体校验身份四项 */
     @Size(max = 50, message = "realname 长度不能超过 50")
     private String realname;
 
@@ -30,6 +31,7 @@ public class ProfileChangeCreateRequest {
     @Size(max = 100, message = "username 长度不能超过 100")
     private String username;
 
+    @Email(message = "email 格式不正确")
     @Size(max = 255, message = "email 长度不能超过 255")
     private String email;
 
