@@ -179,6 +179,10 @@ class ProfileChangeTransactionBoundaryTest {
         assertThat(result.getSuccessCount()).isEqualTo(1);
         assertThat(result.getFailures()).hasSize(1);
         assertThat(result.getFailures().get(0).getId()).isEqualTo("2");
+        // 非业务异常不回传原始 message（可能含 SQL/表名等内部细节）
+        assertThat(result.getFailures().get(0).getReason())
+                .doesNotContain("申请行写入失败")
+                .isEqualTo("审批失败，请稍后重试或查看服务端日志");
         // 第 1 条已提交
         assertThat(transactionManager.store)
                 .containsEntry("user:u1", "new@example.com")

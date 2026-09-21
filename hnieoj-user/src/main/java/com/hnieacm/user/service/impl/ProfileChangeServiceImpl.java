@@ -271,8 +271,14 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
                     try {
                         perItemTransaction.executeWithoutResult(status -> doApprove(id, null, reviewerUid));
                         result.addSuccess();
-                    } catch (Exception e) {
+                    } catch (BizException e) {
+                        // 业务原因对审核人有用，照原样返回
                         result.addFailure(String.valueOf(id), e.getMessage());
+                    } catch (Exception e) {
+                        // 非业务异常（如数据库错误）的 message 里带 SQL 片段与表名，
+                        // 属于服务端内部细节：只记日志，回给客户端一句可读原因。
+                        log.error("Batch approve failed, id: {}", id, e);
+                        result.addFailure(String.valueOf(id), "审批失败，请稍后重试或查看服务端日志");
                     }
                 });
         return result;
