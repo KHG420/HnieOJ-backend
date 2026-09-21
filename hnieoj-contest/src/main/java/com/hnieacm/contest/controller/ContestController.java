@@ -3,6 +3,7 @@ package com.hnieacm.contest.controller;
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.hnieacm.common.dto.PageVo;
 import com.hnieacm.common.result.Result;
+import com.hnieacm.contest.dto.ContestListQuery;
 import com.hnieacm.contest.service.ContestQueryService;
 import com.hnieacm.contest.vo.ContestCheckVo;
 import com.hnieacm.contest.vo.ContestDetailVo;
@@ -39,8 +40,12 @@ public class ContestController {
             @RequestParam @Min(value = 1, message = "page 必须大于等于 1") int page,
             @RequestParam @Min(value = 1, message = "pageSize 必须大于等于 1") int pageSize,
             @RequestParam(required = false) String type,
-            @RequestParam(required = false) String auth) {
-        return Result.success(contestQueryService.listContests(page, pageSize, type, auth));
+            @RequestParam(required = false) String auth,
+            @RequestParam(required = false) @Min(value = 1, message = "startFrom 必须大于 0") Long startFrom,
+            @RequestParam(required = false) @Min(value = 1, message = "startTo 必须大于 0") Long startTo,
+            @RequestParam(required = false) String window) {
+        return Result.success(contestQueryService.listContests(
+                new ContestListQuery(page, pageSize, type, auth, startFrom, startTo, window)));
     }
 
     @Operation(summary = "获取比赛详情")
