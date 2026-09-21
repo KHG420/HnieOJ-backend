@@ -1,13 +1,11 @@
 # HnieOJ-backend CI：编译 + 单元测试（ubuntu/windows 矩阵）、MySQL8/Redis7.4 集成回归、
 # 阿里巴巴 P3C 规约静态检查、密钥泄漏扫描、依赖成分审查。
-# 触发：push 到 master/dev，以及指向 master/dev 的 PR（fork PR 读取基线分支上的本文件）。
-name: CI
+# 触发：仅用户 fork 内部指向 codex/preflight-base 的 PR（主分支 push 与上游 PR 不触发）。
+name: Fork preflight CI
 
 on:
-  push:
-    branches: [master, dev]
   pull_request:
-    branches: [master, dev]
+    branches: ['codex/preflight-base']
 
 permissions:
   contents: read
