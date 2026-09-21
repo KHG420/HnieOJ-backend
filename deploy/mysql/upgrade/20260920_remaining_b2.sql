@@ -57,15 +57,15 @@ CREATE TABLE IF NOT EXISTS `user_message` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='站内消息收件箱';
 
 -- ============================================================================
--- 3. user_profile_change：用户身份（实名/学院/年级/班级）变更申请
---    original/proposed 为仅含 4 项身份字段的 JSON；
+-- 3. user_profile_change：用户资料（身份字段 + 联系/社交字段，共 12 项）变更申请
+--    original/proposed 为包含全部 12 项可变更字段的资料全量快照 JSON；
 --    “同一用户仅一条待审”由业务层用户行锁保证，本表刻意不建唯一 pending 索引。
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS `user_profile_change` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `uid` varchar(50) NOT NULL COMMENT '申请人UID',
-  `original` text NOT NULL COMMENT '申请时原身份字段JSON',
-  `proposed` text NOT NULL COMMENT '期望身份字段JSON',
+  `original` text NOT NULL COMMENT '申请时资料全量快照JSON',
+  `proposed` text NOT NULL COMMENT '期望资料全量快照JSON（未变更字段保留原值）',
   `reason` varchar(1000) NOT NULL COMMENT '申请原因',
   `status` varchar(20) NOT NULL DEFAULT 'PENDING' COMMENT '状态：PENDING/APPROVED/REJECTED',
   `reviewer_uid` varchar(50) DEFAULT NULL COMMENT '审核人UID',

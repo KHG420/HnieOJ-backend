@@ -481,7 +481,7 @@
 ### B2-5.1 提交申请（本人）
 
 - `POST /api/user/profile-change-requests`
-- 请求体（只列需要变更的字段；身份变更需四字段成组）：
+- 请求体（只列需要变更的字段；身份字段与当前资料快照合并后整体校验四项）：
 
 ```json
 { "realname": "张三", "collegeId": 1, "grade": "2024", "classId": 11, "reason": "班级调整" }
@@ -538,7 +538,7 @@
 }
 ```
 
-- 快照中未涉及的字段为 `null`；两侧同为 `null` 表示该字段未申请变更。
+- 快照中未申请变更的字段保留原始值；`original` 与 `proposed` 相同即表示该字段未申请变更。
 
 ### B2-5.3 管理端申请列表（ADMIN/ROOT）
 
@@ -597,7 +597,7 @@
 
 ## B2-7 数据库迁移
 
-- 增量脚本：`deploy/mysql/upgrade/20260920_remaining_b2.sql`；说明见 `deploy/mysql/upgrade/20260920_remaining_b2.md`。存量旧库顺序为 `20260919_redis_gateway.sql` → `20260919_secure_node.sql` → `20260920_remaining_b1.sql` → `20260920_remaining_b2.sql`；全新安装（fresh）用本仓库当前完整初始化脚本 `hnieoj_多数据库.sql`（已内含 20260919 两步 schema）后只需执行 B1 → B2，无需重复 20260919 两步。
+- 增量脚本：`deploy/mysql/upgrade/20260920_remaining_b2.sql`；说明见 `deploy/mysql/upgrade/20260920_remaining_b2.md`。存量旧库顺序为 `20260919_redis_gateway.sql` → `20260919_secure_node.sql` → `20260920_remaining_b1.sql` → `20260920_remaining_b2.sql`；全新安装（fresh）用本仓库当前完整初始化脚本 `hnieoj_多数据库.sql`（已内含 B1/B2 全部表结构）完成初始化即可，无需再执行任何增量脚本。
 - 仅新增 `hnieoj_user_db.user_notice`、`hnieoj_user_db.user_message`、`hnieoj_user_db.user_profile_change` 三张表，`CREATE TABLE IF NOT EXISTS` 可重复执行。
 - `user_message` 唯一键 `uk_notice_recipient (notice_id, recipient_uid)` 保证发布幂等；`idx_recipient_created`/`idx_recipient_read` 服务收件箱与未读数查询。
 - 无 `DROP`/`UPDATE`/历史数据覆盖；“同一用户仅一条待审申请”由业务层用户行锁保证，不依赖唯一 pending 索引。

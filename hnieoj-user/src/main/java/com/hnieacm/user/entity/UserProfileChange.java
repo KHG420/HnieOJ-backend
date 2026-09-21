@@ -22,12 +22,12 @@ public class UserProfileChange {
     private String uid;
 
     /**
-     * 申请时的原始身份字段 JSON（仅 realname/collegeId/grade/classId）。
+     * 申请时的原始资料全量快照 JSON（{@code ProfileChangeField} 全部 12 项可变更字段）。
      */
     private String original;
 
     /**
-     * 期望变更后的身份字段 JSON（仅 realname/collegeId/grade/classId）。
+     * 期望变更后的资料全量快照 JSON（全部 12 项可变更字段；未申请变更的字段保留原始值）。
      */
     private String proposed;
 
