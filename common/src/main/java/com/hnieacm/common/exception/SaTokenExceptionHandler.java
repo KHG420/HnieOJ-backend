@@ -7,15 +7,20 @@ import cn.dev33.satoken.exception.SaTokenException;
 import com.hnieacm.common.result.Result;
 import com.hnieacm.common.result.ResultCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/02/15
- * @Description: Sa-Token 相关异常统一转换为标准 Result 返回
+ * @Description: Sa-Token 相关异常统一转换为标准 Result 返回。
+ * <p>必须优先于 {@link GlobalExceptionHandler}：后者的 {@code Exception.class} 兜底会匹配任意异常，
+ * 若不指定顺序（默认按 Bean 名排序，GlobalExceptionHandler 在前）会把鉴权拒绝转成业务码 500。</p>
  */
 @Slf4j
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice
 public class SaTokenExceptionHandler {
 

@@ -13,7 +13,7 @@ import org.mybatis.spring.annotation.MapperScan;
  */
 @SpringBootApplication(scanBasePackages = "com.hnieacm")
 @EnableDiscoveryClient
-@EnableFeignClients(basePackages = "com.hnieacm.problem.feign")
+@EnableFeignClients(basePackages = {"com.hnieacm.problem.feign", "com.hnieacm.common.feign"})
 @MapperScan("com.hnieacm.problem.mapper")
 public class ProblemApplication {
     public static void main(String[] args) {

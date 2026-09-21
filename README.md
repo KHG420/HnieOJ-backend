@@ -95,7 +95,9 @@ HnieOJ-backend/
 
 ### 配置数据库
 
-在 `deploy/mysql/hnieoj_多数据库.sql` 提供了 mysql 的初始化 sql 脚本，可直接构建表结构
+在 `deploy/mysql/hnieoj_多数据库.sql` 提供了 mysql 的初始化 sql 脚本，可直接构建完整表结构（含公告分类、站内通知/消息、身份资料审核等全部首版功能所需的表、列与索引，无需再补跑增量脚本）
+
+`deploy/mysql/upgrade/` 下的增量脚本仅供已有开发库升级使用；全新安装不要使用增量脚本覆盖
 
 在 `deploy/mysql/添加测试数据.sql` 提供了添加测试的 sql 脚本，可用于开发测试
 
@@ -197,6 +199,28 @@ bash deploy/scripts/deploy-dev.sh gojudge-up
 - [ ] 完成本地题目资源存储与 Nginx 静态图片代理的线上联调
 - [ ] 支持多判题机负载均衡（节点管理、健康检查、故障摘除）
 - [ ] 补齐判题链路集成测试与回归测试
+
+## 附录：文件链路对外 API
+
+以下为文件链路相关对外接口；完整接口清单见 `docs/api-remaining.md`。
+
+| 方法 | 路径 | 鉴权 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/oj/images/{id}/{filename}` | 匿名（仅 GET 两段路径） | 读取题面图片，返回图片 MIME 与 `X-Content-Type-Options: nosniff`；拒绝路径分隔符、`..`、非图片后缀，不暴露 `testdata` |
+| GET | `/api/admin/achievements/{id}/file` | 管理员 / root | 按申请 ID 读取本地成就附件，返回 `application/octet-stream` 与安全的 `attachment` 文件名；外部 HTTP(S) 附件由前端直接打开，服务端不代理 |
+
+同时包含的边界约定：
+
+- 网关路由 `hnieoj-problem-images`（`/oj/images/**` -> `lb://hnieoj-problem`），仅默认相对 `imageUrlPrefix=/oj/images` 时生效；自定义外部 HTTP(S) 前缀仍由外部托管。
+- 网关对 `/api/registrations` 与 `/api/registrations/**` 执行 ADMIN/ROOT 角色校验，服务内注解校验作双保险。
+- `AchievementApplyAdminVo` 包含 `description`、`fileUrl`：本地存储的 `fileUrl` 输出受保护下载接口，外部 HTTP(S) 地址原样返回，不改变数据库持久值。
+
+### 扩展字段与资料申请契约
+
+- 扩展字段：`announcement.category`（`ANNOUNCEMENT`/`NEWS`）、远程评测账号 `password`/`status`/`maxConcurrency` 的可选更新语义（缺省保留原值，空白密码不覆盖）；标签目录与标签管理接口见 `docs/api-remaining.md`。
+- 本人资料修改保留两条契约，分工明确：`PUT /api/user/profile`（白名单字段直接生效，字段缺省保留、空串清除可选项）；`POST/GET /api/user/profile-change-requests` 是**唯一**的变更申请流程，按申请 id 审批，可申请 12 个字段（身份字段 realname/collegeId/grade/classId + 联系/社交字段 username/email/phone/avatar/qq/cfUsername/github/blog），只提交需要变更的字段，原值与新值以 JSON 全量快照保存。审核入口为 `GET /api/admin/profile-change-requests` 与 `POST /api/admin/profile-change-requests/{id}/approve`、`POST /api/admin/profile-change-requests/{id}/reject`、`POST /api/admin/profile-change-requests/batch-approve`。逐字段做原值一致性校验，只写回本申请涉及的字段。完整字段与错误码见 `docs/api-remaining.md`。
+- 改密两个路径均保留：新路径 `PUT /api/user/password` 请求体为 `oldPassword`/`newPassword`；旧路径 `PUT /api/user/profile/password` 请求体为 `oldPassword`/`password`。两条路径都校验旧密码并更新 BCrypt 新密码。
+- 前端安全节点映射：判题节点 Agent 的 `baseUrl` 使用 HTTPS、`wssUrl` 使用 WSS（网关 `/ws/judge/node`，`lb:ws://`）连接后端，`hnieoj.audience` 必须与后端 `HNIEOJ_JUDGE_NODE_AUDIENCE` 一致；网关保留 `/ws/judge/node` 与 `/judge/nodes/**` 路由，且不恢复 `/judge/tasks/**` 等退休旁路。
 
 ## 贡献说明
 

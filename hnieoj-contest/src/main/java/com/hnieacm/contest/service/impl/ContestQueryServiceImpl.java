@@ -6,7 +6,9 @@ import com.hnieacm.common.dto.PageVo;
 import com.hnieacm.common.exception.BizException;
 import com.hnieacm.common.result.ResultCode;
 import com.hnieacm.contest.constant.ContestAuthConstant;
+import com.hnieacm.contest.constant.ContestListWindowConstant;
 import com.hnieacm.contest.constant.ContestTypeConstant;
+import com.hnieacm.contest.dto.ContestListQuery;
 import com.hnieacm.contest.entity.Contest;
 import com.hnieacm.contest.entity.ContestProblem;
 import com.hnieacm.contest.mapper.ContestMapper;
@@ -19,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -40,32 +43,50 @@ public class ContestQueryServiceImpl implements ContestQueryService {
 
     /**
      * @MethodName listContests
-     * @Param page
-     * @Param pageSize
-     * @Param type
-     * @Param auth
-     * @Description 比赛列表
+     * @Param query
+     * @Description 比赛列表（type/auth 过滤 + 开始时间窗过滤 + window=recent 排序）
      * @Return @return {@link PageVo }<{@link ContestListVo }>
      * @Author HaoRan_Lyu
-     * @Date 2026/02/28
+     * @Date 2026/09/21
      */
     @Override
-    public PageVo<ContestListVo> listContests(int page, int pageSize, String type, String auth) {
+    public PageVo<ContestListVo> listContests(ContestListQuery query) {
+        int page = query.page();
+        int pageSize = query.pageSize();
         ContestServiceSupport.validatePageParams(page, pageSize);
 
-        Integer contestType = ContestTypeConstant.fromName(type);
-        Integer contestAuth = ContestAuthConstant.fromName(auth);
+        Integer contestType = ContestTypeConstant.fromName(query.type());
+        Integer contestAuth = ContestAuthConstant.fromName(query.auth());
+        String window = ContestListWindowConstant.normalize(query.window());
+        Long startFrom = query.startFrom();
+        Long startTo = query.startTo();
+        if (startFrom != null && startTo != null && startFrom > startTo) {
+            throw new BizException(ResultCode.BAD_REQUEST, "startFrom 不能晚于 startTo");
+        }
 
         LambdaQueryWrapper<Contest> wrapper = new LambdaQueryWrapper<Contest>()
-                .eq(Contest::getIsVisible, VISIBLE)
-                .orderByDesc(Contest::getStartTime)
-                .orderByDesc(Contest::getId);
+                .eq(Contest::getIsVisible, VISIBLE);
+
+        if (ContestListWindowConstant.RECENT.equals(window)) {
+            // 「距当前由近到远」：不能用 orderByDesc(startTime)，否则永远拿到开始时间最晚的那场
+            // （可能是很久以后的未来比赛，与「近期比赛」语义不符）。pivot 用 JVM 时钟，
+            // 与同一个响应里 resolveRuntimeStatus 算出的 status 共用一套时间。
+            wrapper.last(ContestServiceSupport.recentOrderBySql(LocalDateTime.now()));
+        } else {
+            wrapper.orderByDesc(Contest::getStartTime).orderByDesc(Contest::getId);
+        }
 
         if (contestType != null) {
             wrapper.eq(Contest::getType, contestType);
         }
         if (contestAuth != null) {
             wrapper.eq(Contest::getAuth, contestAuth);
+        }
+        if (startFrom != null) {
+            wrapper.ge(Contest::getStartTime, ContestServiceSupport.toLocalDateTime(startFrom));
+        }
+        if (startTo != null) {
+            wrapper.le(Contest::getStartTime, ContestServiceSupport.toLocalDateTime(startTo));
         }
 
         return ContestServiceSupport.buildContestPageVo(

@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -33,6 +34,13 @@ import java.util.stream.Collectors;
  * @Description: 比赛服务通用逻辑支撑
  */
 public final class ContestServiceSupport {
+
+    /**
+     * 拼进 ORDER BY 的时间字面量格式：不带 'T' 分隔符，兼容 MySQL {@code datetime} 字面量。
+     * 精度到秒与 {@code TIMESTAMPDIFF(SECOND, ...)} 一致。
+     */
+    private static final DateTimeFormatter SQL_DATETIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private ContestServiceSupport() {
     }
@@ -300,5 +308,23 @@ public final class ContestServiceSupport {
      */
     public static long toEpochMilli(LocalDateTime dateTime) {
         return dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+    }
+
+    /**
+     * @MethodName recentOrderBySql
+     * @Param pivot
+     * @Description 构造「距 pivot 由近到远」的 ORDER BY 片段（过去与未来的比赛都参与）
+     * <p>pivot 由调用方用 <b>JVM 时钟</b>（{@code LocalDateTime.now()}）给出，而不是用 SQL 的
+     * {@code NOW()}：MySQL 会话时区与应用 JVM 时区可能不同（本项目容器里 MySQL 默认 UTC），
+     * 用哪一边的时间会让排序结果与同一个响应里由 {@link #resolveRuntimeStatus} 计算出的
+     * status 文案互相矛盾。pivot 是服务端生成的时间值而非用户输入，因此这里以字面量拼进 SQL
+     * 不引入注入面（MyBatis-Plus 3.5.7 的 {@code last(...)} 只接受 SQL 片段，不支持占位参数）。</p>
+     * @Return @return {@link String }
+     * @Author HaoRan_Lyu
+     * @Date 2026/09/21
+     */
+    public static String recentOrderBySql(LocalDateTime pivot) {
+        Objects.requireNonNull(pivot, "pivot 不能为空");
+        return "ORDER BY ABS(TIMESTAMPDIFF(SECOND, '" + SQL_DATETIME_FORMATTER.format(pivot) + "', start_time)) ASC, id ASC";
     }
 }

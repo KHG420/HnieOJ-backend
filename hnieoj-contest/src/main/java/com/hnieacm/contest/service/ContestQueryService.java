@@ -1,6 +1,7 @@
 package com.hnieacm.contest.service;
 
 import com.hnieacm.common.dto.PageVo;
+import com.hnieacm.contest.dto.ContestListQuery;
 import com.hnieacm.contest.vo.ContestCheckVo;
 import com.hnieacm.contest.vo.ContestDetailVo;
 import com.hnieacm.contest.vo.ContestListVo;
@@ -12,7 +13,11 @@ import com.hnieacm.contest.vo.ContestListVo;
  */
 public interface ContestQueryService {
 
-    PageVo<ContestListVo> listContests(int page, int pageSize, String type, String auth);
+    /**
+     * 比赛列表。查询条件聚合在 {@link ContestListQuery}：type/auth 过滤、startFrom/startTo 时间窗过滤、
+     * window=recent 时按「距当前由近到远」排序（不改变可见性过滤）。
+     */
+    PageVo<ContestListVo> listContests(ContestListQuery query);
 
     ContestDetailVo getContestDetail(Long contestId);
 

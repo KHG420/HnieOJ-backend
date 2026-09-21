@@ -102,33 +102,12 @@ CREATE TABLE `user_register_apply` (
   UNIQUE KEY `uk_register_apply_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户注册审核表';
 
--- 用户资料修改申请表
+-- 用户资料修改申请表（user_profile_change_apply）已随两套「资料变更」流程合并而退役：
+-- 资料变更统一由 user_profile_change（按申请 id 审批、original/proposed 全量快照、逐字段原值一致性校验）受理，
+-- 另一张表与对应接口、服务、前端调用一并移除（BE-03.6 / W5）。
+-- 这里保留显式的 DROP：本脚本对已存在的库是「重跑」而不是「重建」，只删掉 CREATE 语句会让
+-- 上一版建出的表以孤儿形式留在库里；对全新安装该语句是无害的空操作。
 DROP TABLE IF EXISTS `user_profile_change_apply`;
-CREATE TABLE `user_profile_change_apply` (
-  `id` bigint(20) NOT NULL AUTO_INCREMENT,
-  `uid` varchar(50) NOT NULL COMMENT '申请用户UID',
-  `username` varchar(50) DEFAULT NULL COMMENT '申请用户名',
-  `email` varchar(255) DEFAULT NULL COMMENT '申请邮箱',
-  `phone` varchar(20) DEFAULT NULL COMMENT '申请手机号',
-  `avatar` varchar(255) DEFAULT NULL COMMENT '申请头像URL',
-  `college_id` bigint(20) DEFAULT NULL COMMENT '申请学院ID',
-  `class_id` bigint(20) DEFAULT NULL COMMENT '申请班级ID',
-  `grade` varchar(20) DEFAULT NULL COMMENT '申请年级',
-  `realname` varchar(50) DEFAULT NULL COMMENT '申请真实姓名',
-  `qq` varchar(20) DEFAULT NULL COMMENT '申请QQ号',
-  `cf_username` varchar(100) DEFAULT NULL COMMENT '申请Codeforces账号',
-  `github` varchar(255) DEFAULT NULL COMMENT '申请GitHub链接',
-  `blog` varchar(255) DEFAULT NULL COMMENT '申请博客链接',
-  `status` varchar(20) NOT NULL DEFAULT 'pending' COMMENT 'pending/approved/rejected',
-  `reason` varchar(255) DEFAULT NULL COMMENT '驳回原因',
-  `reviewer_uid` varchar(50) DEFAULT NULL COMMENT '审核人UID',
-  `review_time` datetime DEFAULT NULL COMMENT '审核时间',
-  `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
-  `gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_uid_status` (`uid`, `status`),
-  KEY `idx_status_create` (`status`, `gmt_create`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户资料修改申请表';
 
 -- 角色表
 DROP TABLE IF EXISTS `role`;
@@ -236,6 +215,63 @@ CREATE TABLE `achievement_apply` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='成就认证申请表';
 
+-- 管理员定向通知表（草稿 -> 发布收件人快照）
+-- target_type: USERS / CLASSES；target_spec: JSON 字符串数组（USERS 为 uid，CLASSES 为班级 id）
+DROP TABLE IF EXISTS `user_notice`;
+CREATE TABLE `user_notice` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) NOT NULL COMMENT '通知标题',
+  `content` text NOT NULL COMMENT '通知正文（纯文本/安全 Markdown，后端不注入 HTML）',
+  `target_type` varchar(20) NOT NULL COMMENT '目标类型：USERS/CLASSES',
+  `target_spec` text NOT NULL COMMENT '目标ID的JSON字符串数组',
+  `status` varchar(20) NOT NULL DEFAULT 'DRAFT' COMMENT '状态：DRAFT/PUBLISHED',
+  `creator_uid` varchar(50) NOT NULL COMMENT '创建者UID',
+  `published_at` datetime DEFAULT NULL COMMENT '发布时间',
+  `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
+  `gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_status_gmt_create` (`status`, `gmt_create`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='管理员定向通知';
+
+-- 站内消息收件箱（发布通知时按收件人快照生成）
+-- 唯一键 (notice_id, recipient_uid) 保证重复发布不重复投递；deleted_at 为软删除
+DROP TABLE IF EXISTS `user_message`;
+CREATE TABLE `user_message` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `notice_id` bigint(20) NOT NULL COMMENT '来源通知ID',
+  `recipient_uid` varchar(50) NOT NULL COMMENT '收件人UID',
+  `title` varchar(255) NOT NULL COMMENT '发布时标题快照',
+  `content` text NOT NULL COMMENT '发布时正文快照',
+  `read_at` datetime DEFAULT NULL COMMENT '已读时间',
+  `deleted_at` datetime DEFAULT NULL COMMENT '软删除时间',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '投递时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_notice_recipient` (`notice_id`, `recipient_uid`),
+  KEY `idx_recipient_created` (`recipient_uid`, `created_at`),
+  KEY `idx_recipient_read` (`recipient_uid`, `read_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='站内消息收件箱';
+
+-- 用户身份资料变更申请表（实名/学院/年级/班级）
+-- original/proposed 为仅含 4 项身份字段的 JSON；
+-- “同一用户仅一条待审”由业务层用户行锁保证，本表刻意不建唯一 pending 索引
+DROP TABLE IF EXISTS `user_profile_change`;
+CREATE TABLE `user_profile_change` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `uid` varchar(50) NOT NULL COMMENT '申请人UID',
+  `original` text NOT NULL COMMENT '申请时原身份字段JSON',
+  `proposed` text NOT NULL COMMENT '期望身份字段JSON',
+  `reason` varchar(1000) NOT NULL COMMENT '申请原因',
+  `status` varchar(20) NOT NULL DEFAULT 'PENDING' COMMENT '状态：PENDING/APPROVED/REJECTED',
+  `reviewer_uid` varchar(50) DEFAULT NULL COMMENT '审核人UID',
+  `review_reason` varchar(1000) DEFAULT NULL COMMENT '审核意见/驳回原因',
+  `review_at` datetime DEFAULT NULL COMMENT '审核时间',
+  `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
+  `gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_uid_status` (`uid`, `status`),
+  KEY `idx_status_gmt_create` (`status`, `gmt_create`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户身份资料变更申请';
+
 
 -- ========================================================
 -- 2. 题目数据库: hnieoj_problem_db
@@ -310,7 +346,8 @@ CREATE TABLE `problem_tag` (
   `problem_id` bigint(20) NOT NULL,
   `tid` bigint(20) NOT NULL,
   PRIMARY KEY (`id`),
-  KEY `idx_problem_id` (`problem_id`)
+  KEY `idx_problem_id` (`problem_id`),
+  KEY `idx_tid` (`tid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 语言配置
@@ -656,7 +693,8 @@ CREATE TABLE `remote_judge_account` (
   `status` tinyint(1) DEFAULT '1' COMMENT '1:启用, 0:禁用',
   `max_concurrency` int(11) DEFAULT '1',
   `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_oj_username` (`oj`, `username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
@@ -950,6 +988,7 @@ CREATE TABLE `announcement` (
   `content` longtext NOT NULL,
   `uid` varchar(50) NOT NULL COMMENT '发布者',
   `status` tinyint(1) DEFAULT '1',
+  `category` varchar(20) NOT NULL DEFAULT 'ANNOUNCEMENT' COMMENT '公告分类：ANNOUNCEMENT/NEWS',
   `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
   `gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)

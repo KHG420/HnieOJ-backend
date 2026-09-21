@@ -150,6 +150,43 @@ public class BaseDataServiceImpl implements BaseDataService {
     }
 
     /**
+     * @MethodName listClassesByIds
+     * @Param ids
+     * @Description 按 id 批量反查班级；未命中的 id 跳过不报错，非法 id 抛 400
+     * @Return @return {@link List }<{@link IdNameVo }>
+     * @Author HaoRan_Lyu
+     * @Date 2026/09/21
+     */
+    @Override
+    public List<IdNameVo> listClassesByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            throw new BizException(ResultCode.BAD_REQUEST, "ids 不能为空");
+        }
+
+        // 去重：同一个班级可能在多处被引用；非法 id 属调用方缺陷，显式 400 而不是静默跳过
+        Set<Long> distinctIds = new LinkedHashSet<>();
+        for (Long id : ids) {
+            if (id == null || id <= 0) {
+                throw new BizException(ResultCode.BAD_REQUEST, "id 必须>=1");
+            }
+            distinctIds.add(id);
+        }
+
+        // 不设数量上限：前端一次给出作业已选的全部班级，写死上限会随学院规模失效并反而阻断编辑
+        List<SysClass> list = sysClassMapper.selectList(
+                new LambdaQueryWrapper<SysClass>()
+                        .select(SysClass::getId, SysClass::getName)
+                        .in(SysClass::getId, distinctIds)
+                        .orderByAsc(SysClass::getId)
+        );
+        if (list == null || list.isEmpty()) {
+            // 全部 id 均不存在：返回空列表，由调用方保留 id 展示、不阻断编辑
+            return Collections.emptyList();
+        }
+        return list.stream().map(c -> new IdNameVo(c.getId(), c.getName())).toList();
+    }
+
+    /**
      * @MethodName listTeachers
      * @Param classId
      * @Description 班级负责教师列表
