@@ -3,7 +3,6 @@ package com.hnieacm.user.service.impl;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.hnieacm.common.constant.AuthCacheConstant;
 import com.hnieacm.common.exception.BizException;
 import com.hnieacm.common.result.ResultCode;
 import com.hnieacm.user.dto.ChangeCurrentPasswordRequest;
@@ -15,6 +14,7 @@ import com.hnieacm.user.mapper.UserInfoMapper;
 import com.hnieacm.user.mapper.UserRoleMapper;
 import com.hnieacm.user.properties.UserManageProperties;
 import com.hnieacm.user.service.manager.UserInfoManager;
+import com.hnieacm.user.service.support.UserAuthStateService;
 import com.hnieacm.user.support.MyBatisPlusTestSupport;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,10 +26,11 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.lang.reflect.Field;
@@ -43,6 +44,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -75,7 +77,7 @@ class UserProfileServiceImplTest {
     private RoleMapper roleMapper;
 
     @Mock
-    private StringRedisTemplate stringRedisTemplate;
+    private UserAuthStateService userAuthStateService;
 
     private UserProfileServiceImpl service;
 
@@ -92,7 +94,7 @@ class UserProfileServiceImplTest {
                 userRoleMapper,
                 roleMapper,
                 new UserManageProperties(),
-                stringRedisTemplate
+                userAuthStateService
         );
     }
 
@@ -336,7 +338,7 @@ class UserProfileServiceImplTest {
 
         verify(userInfoMapper, never()).updateById(any(UserInfo.class));
         verify(spyService, never()).invalidateSessions(anyString());
-        verify(stringRedisTemplate, never()).delete(anyString());
+        verify(userAuthStateService, never()).afterCommit(any());
     }
 
     @Test
@@ -376,6 +378,9 @@ class UserProfileServiceImplTest {
     void sessionsInvalidatedOnlyAfterCommit() {
         UserProfileServiceImpl spyService = spy(service);
         doNothing().when(spyService).invalidateSessions(anyString());
+        // UserAuthStateService 是 mock：为 afterCommit 装上真实的“提交后才执行”语义，
+        // 以验证失效会话动作确实被延迟到事务提交之后。
+        stubRealAfterCommit();
 
         UserInfo user = user("u1");
         user.setPassword(BCrypt.hashpw("oldpass"));
@@ -395,6 +400,24 @@ class UserProfileServiceImplTest {
         verify(spyService, times(1)).invalidateSessions("u1");
         verify(userInfoMapper).updateById(user);
         assertThat(BCrypt.checkpw("newpass123", user.getPassword())).isTrue();
+    }
+
+    private void stubRealAfterCommit() {
+        doAnswer(invocation -> {
+            Runnable action = invocation.getArgument(0);
+            if (TransactionSynchronizationManager.isActualTransactionActive()
+                    && TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        action.run();
+                    }
+                });
+            } else {
+                action.run();
+            }
+            return null;
+        }).when(userAuthStateService).afterCommit(any());
     }
 
     // ------------------------------------------------------------------
@@ -422,7 +445,7 @@ class UserProfileServiceImplTest {
         }
 
         verify(userInfoMapper, never()).updateById(any(UserInfo.class));
-        verify(stringRedisTemplate, never()).delete(anyString());
+        verify(userAuthStateService, never()).afterCommit(any());
     }
 
     @Test
@@ -438,7 +461,6 @@ class UserProfileServiceImplTest {
 
         try (MockedStatic<StpUtil> stpUtil = mockStatic(StpUtil.class)) {
             stpUtil.when(StpUtil::getLoginIdAsString).thenReturn("u1");
-            stpUtil.when(() -> StpUtil.getTokenValueListByLoginId("u1")).thenReturn(List.of());
 
             service.changeCurrentPassword(request);
         }
@@ -446,8 +468,11 @@ class UserProfileServiceImplTest {
         assertThat(BCrypt.checkpw("New@123456", user.getPassword())).isTrue();
         assertThat(user.getPasswordResetRequired()).isFalse();
         verify(userInfoMapper).updateById(user);
-        verify(stringRedisTemplate).delete(AuthCacheConstant.ROLE_CACHE_PREFIX + "u1");
-        verify(stringRedisTemplate).delete(AuthCacheConstant.PERMISSION_CACHE_PREFIX + "u1");
+        // 会话失效登记在事务提交后执行；执行体委托 UserAuthStateService 单点踢出
+        ArgumentCaptor<Runnable> afterCommitCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(userAuthStateService).afterCommit(afterCommitCaptor.capture());
+        afterCommitCaptor.getValue().run();
+        verify(userAuthStateService).kickoutUserSafely("u1");
     }
 
     private UserInfo user(String uid) {

@@ -24,7 +24,7 @@ import java.util.List;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/20
- * @Description: 标签服务实现：目录读取 + 管理端增删改，删除被引用标签返回冲突。
+ * @Description: 标签服务实现：目录读取 + 管理端增删改，删除被引用标签抛出 400 业务异常。
  */
 @Slf4j
 @Service
@@ -125,10 +125,12 @@ public class TagServiceImpl implements TagService {
             throw new BizException(ResultCode.NOT_FOUND, "标签不存在");
         }
 
-        Long referenceCount = problemTagMapper.selectCount(
-                new LambdaQueryWrapper<ProblemTag>().eq(ProblemTag::getTid, id)
+        // 引用检查必须是当前读：普通 SELECT 在 REPEATABLE READ 下沿用事务快照，
+        // 看不到并发事务刚提交的关联，会误删仍被引用的标签。
+        List<ProblemTag> references = problemTagMapper.selectList(
+                new LambdaQueryWrapper<ProblemTag>().eq(ProblemTag::getTid, id).last("LIMIT 1 FOR UPDATE")
         );
-        if (referenceCount != null && referenceCount > 0) {
+        if (!references.isEmpty()) {
             throw new BizException(ResultCode.BAD_REQUEST, "标签已被题目引用，请先解除关联");
         }
 

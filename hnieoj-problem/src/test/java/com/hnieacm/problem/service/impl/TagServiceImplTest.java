@@ -176,7 +176,7 @@ class TagServiceImplTest {
         tag.setId(5L);
         tag.setName("dp");
         when(tagMapper.selectList(any())).thenReturn(List.of(tag));
-        when(problemTagMapper.selectCount(any())).thenReturn(2L);
+        when(problemTagMapper.selectList(any())).thenReturn(List.of(new ProblemTag()));
 
         assertThatThrownBy(() -> service.deleteTag(5L))
                 .isInstanceOf(BizException.class)
@@ -192,7 +192,7 @@ class TagServiceImplTest {
         tag.setId(5L);
         tag.setName("dp");
         when(tagMapper.selectList(any())).thenReturn(List.of(tag));
-        when(problemTagMapper.selectCount(any())).thenReturn(0L);
+        when(problemTagMapper.selectList(any())).thenReturn(List.of());
 
         service.deleteTag(5L);
 
@@ -205,7 +205,7 @@ class TagServiceImplTest {
         Tag tag = new Tag();
         tag.setId(5L);
         when(tagMapper.selectList(any())).thenReturn(List.of(tag));
-        when(problemTagMapper.selectCount(any())).thenReturn(0L);
+        when(problemTagMapper.selectList(any())).thenReturn(List.of());
 
         service.deleteTag(5L);
 
@@ -213,5 +213,23 @@ class TagServiceImplTest {
         ArgumentCaptor<Wrapper<Tag>> captor = ArgumentCaptor.forClass(Wrapper.class);
         verify(tagMapper).selectList(captor.capture());
         assertThat(captor.getValue().getTargetSql()).contains("FOR UPDATE");
+    }
+
+    @Test
+    void deleteChecksReferencesWithLockingRead() {
+        Tag tag = new Tag();
+        tag.setId(5L);
+        tag.setName("dp");
+        when(tagMapper.selectList(any())).thenReturn(List.of(tag));
+        when(problemTagMapper.selectList(any())).thenReturn(List.of());
+
+        service.deleteTag(5L);
+
+        // 引用检查必须是当前读（FOR UPDATE），否则 REPEATABLE READ 下的普通 SELECT 会沿用旧快照，
+        // 看不到并发事务刚提交的关联而误删仍被引用的标签。
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Wrapper<ProblemTag>> captor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(problemTagMapper).selectList(captor.capture());
+        assertThat(captor.getValue().getSqlSegment()).containsIgnoringCase("FOR UPDATE");
     }
 }

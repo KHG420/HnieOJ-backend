@@ -3,7 +3,6 @@ package com.hnieacm.user.service.impl;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hnieacm.common.constant.AuthCacheConstant;
 import com.hnieacm.common.exception.BizException;
 import com.hnieacm.common.result.ResultCode;
 import com.hnieacm.user.constant.ProfileChangeStatusConstant;
@@ -16,6 +15,7 @@ import com.hnieacm.user.mapper.SysClassMapper;
 import com.hnieacm.user.mapper.SysCollegeMapper;
 import com.hnieacm.user.mapper.UserInfoMapper;
 import com.hnieacm.user.mapper.UserProfileChangeMapper;
+import com.hnieacm.user.service.support.UserAuthStateService;
 import com.hnieacm.user.support.MyBatisPlusTestSupport;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +26,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
@@ -38,6 +37,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -70,7 +70,7 @@ class ProfileChangeServiceImplTest {
     private SysClassMapper sysClassMapper;
 
     @Mock
-    private StringRedisTemplate stringRedisTemplate;
+    private UserAuthStateService userAuthStateService;
 
     private ProfileChangeServiceImpl service;
 
@@ -84,7 +84,7 @@ class ProfileChangeServiceImplTest {
     void setUp() {
         service = new ProfileChangeServiceImpl(
                 userProfileChangeMapper, userInfoMapper, sysCollegeMapper, sysClassMapper,
-                stringRedisTemplate, new ObjectMapper());
+                userAuthStateService, new ObjectMapper());
     }
 
     @Test
@@ -247,7 +247,7 @@ class ProfileChangeServiceImplTest {
     }
 
     @Test
-    void approveClearsAuthCacheOnlyAfterCommit() {
+    void approveDefersAuthCacheCleanupToAfterCommit() {
         UserProfileChange change = change(6L, "u1", ProfileChangeStatusConstant.PENDING,
                 ORIGINAL_MATCHED, PROPOSED_VALID);
         when(userProfileChangeMapper.selectOne(any())).thenReturn(change);
@@ -257,11 +257,14 @@ class ProfileChangeServiceImplTest {
         TransactionTemplate template = new TransactionTemplate(new StubTransactionManager());
         template.executeWithoutResult(status -> {
             service.approve(6L, null, "admin");
-            verify(stringRedisTemplate, never()).delete(any(String.class));
+            // 事务提交前不得直接清理鉴权缓存
+            verify(userAuthStateService, never()).deleteUserAuthCache(anyString());
         });
 
-        verify(stringRedisTemplate, times(1)).delete(AuthCacheConstant.ROLE_CACHE_PREFIX + "u1");
-        verify(stringRedisTemplate, times(1)).delete(AuthCacheConstant.PERMISSION_CACHE_PREFIX + "u1");
+        ArgumentCaptor<Runnable> afterCommitCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(userAuthStateService, times(1)).afterCommit(afterCommitCaptor.capture());
+        afterCommitCaptor.getValue().run();
+        verify(userAuthStateService, times(1)).deleteUserAuthCache("u1");
     }
 
     private void stubValidIdentity() {

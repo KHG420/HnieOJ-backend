@@ -8,6 +8,7 @@ import com.hnieacm.common.result.ResultCode;
 import com.hnieacm.training.constant.TrainingAuthConstant;
 import com.hnieacm.training.constant.TrainingStatusConstant;
 import com.hnieacm.training.constant.TrainingTypeConstant;
+import com.hnieacm.training.dto.AdminTrainingSaveRequest;
 import com.hnieacm.training.entity.Training;
 import com.hnieacm.training.entity.TrainingProblem;
 import com.hnieacm.training.mapper.TrainingCategoryRelMapper;
@@ -17,6 +18,7 @@ import com.hnieacm.training.service.manager.TrainingProblemManager;
 import com.hnieacm.training.vo.AdminTrainingDetailVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 
@@ -24,13 +26,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/20
  * @Description: 管理端完整题单详情回归：停用/私有题单必须返回全部可编辑字段与有序题目，
- * 且 problems 仅暴露 problemId/displayId；不存在时返回 NOT_FOUND 业务码。
+ * 且 problems 仅暴露 problemId/displayId、私有密码不明文回显；不存在时返回 NOT_FOUND 业务码。
  */
 class TrainingAdminServiceImplDetailTest {
 
@@ -51,7 +54,7 @@ class TrainingAdminServiceImplDetailTest {
     }
 
     @Test
-    void returnsAllEditableFieldsIncludingPrivatePwdForDisabledTraining() {
+    void returnsAllEditableFieldsWithoutEchoingPrivatePwdForDisabledTraining() {
         Training training = new Training();
         training.setId(42L);
         training.setTitle("Disabled private training");
@@ -79,7 +82,8 @@ class TrainingAdminServiceImplDetailTest {
         assertThat(detail.getTitle()).isEqualTo("Disabled private training");
         assertThat(detail.getType()).isEqualTo(TrainingTypeConstant.OFFICIAL);
         assertThat(detail.getAuth()).isEqualTo(TrainingAuthConstant.PRIVATE);
-        assertThat(detail.getPrivatePwd()).isEqualTo("secret-pwd");
+        // 私有密码不回显明文，编辑表单留空即表示保留原密码（见 updateKeepsExistingPrivatePwdWhenBlank）
+        assertThat(detail.getPrivatePwd()).isNull();
         assertThat(detail.getDescription()).isEqualTo("retained description");
         assertThat(detail.getStatus()).isFalse();
         assertThat(detail.getRank()).isEqualTo(7);
@@ -88,6 +92,53 @@ class TrainingAdminServiceImplDetailTest {
         assertThat(detail.getProblems().get(0).getDisplayId()).isEqualTo(3);
         assertThat(detail.getProblems().get(1).getProblemId()).isEqualTo(9L);
         assertThat(detail.getProblems().get(1).getDisplayId()).isEqualTo(1);
+    }
+
+    @Test
+    void updateKeepsExistingPrivatePwdWhenBlank() {
+        Training existed = new Training();
+        existed.setId(42L);
+        existed.setAuthor("author");
+        existed.setPrivatePwd("secret-pwd");
+        when(trainingMapper.selectById(42L)).thenReturn(existed);
+
+        AdminTrainingSaveRequest request = new AdminTrainingSaveRequest();
+        request.setTitle("t");
+        request.setType(TrainingTypeConstant.OFFICIAL);
+        request.setAuth(TrainingAuthConstant.PRIVATE);
+        request.setStatus(true);
+        // 编辑表单不回显密码，留空表示保留原值
+        request.setPrivatePwd("   ");
+        request.setProblems(List.of());
+
+        service.updateTraining(42L, request);
+
+        ArgumentCaptor<Training> captor = ArgumentCaptor.forClass(Training.class);
+        verify(trainingMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getPrivatePwd()).isEqualTo("secret-pwd");
+    }
+
+    @Test
+    void updateClearsPrivatePwdWhenAuthBecomesPublic() {
+        Training existed = new Training();
+        existed.setId(42L);
+        existed.setAuthor("author");
+        existed.setPrivatePwd("secret-pwd");
+        when(trainingMapper.selectById(42L)).thenReturn(existed);
+
+        AdminTrainingSaveRequest request = new AdminTrainingSaveRequest();
+        request.setTitle("t");
+        request.setType(TrainingTypeConstant.OFFICIAL);
+        request.setAuth(TrainingAuthConstant.PUBLIC);
+        request.setStatus(true);
+        request.setPrivatePwd("secret-pwd");
+        request.setProblems(List.of());
+
+        service.updateTraining(42L, request);
+
+        ArgumentCaptor<Training> captor = ArgumentCaptor.forClass(Training.class);
+        verify(trainingMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getPrivatePwd()).isNull();
     }
 
     @Test
@@ -107,7 +158,6 @@ class TrainingAdminServiceImplDetailTest {
         vo.setTitle("t");
         vo.setType(TrainingTypeConstant.OFFICIAL);
         vo.setAuth(TrainingAuthConstant.PRIVATE);
-        vo.setPrivatePwd("pwd");
         vo.setDescription("d");
         vo.setStatus(false);
         vo.setRank(7);
@@ -119,7 +169,6 @@ class TrainingAdminServiceImplDetailTest {
         JsonNode node = new ObjectMapper().readTree(new ObjectMapper().writeValueAsString(vo));
 
         assertThat(node.get("id").asLong()).isEqualTo(42L);
-        assertThat(node.get("privatePwd").asText()).isEqualTo("pwd");
         assertThat(node.get("status").asBoolean()).isFalse();
         JsonNode problems = node.get("problems");
         assertThat(problems.size()).isEqualTo(1);

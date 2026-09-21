@@ -13,11 +13,6 @@ import com.hnieacm.user.dto.ChangeCurrentPasswordRequest;
 public interface UserProfileService {
 
     /**
-     * 获取当前登录用户信息（兼容上游无参入口，内部使用服务端登录态 uid）。
-     */
-    UserProfileVo getCurrentUserProfile();
-
-    /**
      * 获取指定登录态用户信息。
      *
      * @param uid 登录态 uid，调用方保证来自服务端会话
@@ -25,7 +20,7 @@ public interface UserProfileService {
     UserProfileVo getCurrentUserProfile(String uid);
 
     /**
-     * 修改当前登录用户密码（上游入口，oldPassword/password）。
+     * 修改当前登录用户密码（oldPassword/password）。
      */
     void changeCurrentPassword(ChangeCurrentPasswordRequest request);
 

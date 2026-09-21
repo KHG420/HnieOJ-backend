@@ -4,10 +4,10 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hnieacm.common.constant.AuthCacheConstant;
 import com.hnieacm.common.dto.PageVo;
 import com.hnieacm.common.exception.BizException;
 import com.hnieacm.common.result.ResultCode;
+import com.hnieacm.common.util.PageParamUtils;
 import com.hnieacm.user.constant.ProfileChangeStatusConstant;
 import com.hnieacm.user.dto.ProfileChangeCreateRequest;
 import com.hnieacm.user.entity.SysClass;
@@ -19,15 +19,13 @@ import com.hnieacm.user.mapper.SysCollegeMapper;
 import com.hnieacm.user.mapper.UserInfoMapper;
 import com.hnieacm.user.mapper.UserProfileChangeMapper;
 import com.hnieacm.user.service.ProfileChangeService;
+import com.hnieacm.user.service.support.UserAuthStateService;
 import com.hnieacm.user.vo.ProfileChangeVo;
 import com.hnieacm.user.vo.ProfileIdentityVo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -47,15 +45,13 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class ProfileChangeServiceImpl implements ProfileChangeService {
 
-    private static final int MAX_PAGE_SIZE = 100;
-
     private static final int MAX_REASON_LENGTH = 1000;
 
     private final UserProfileChangeMapper userProfileChangeMapper;
     private final UserInfoMapper userInfoMapper;
     private final SysCollegeMapper sysCollegeMapper;
     private final SysClassMapper sysClassMapper;
-    private final StringRedisTemplate stringRedisTemplate;
+    private final UserAuthStateService userAuthStateService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -108,7 +104,7 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
 
     @Override
     public PageVo<ProfileChangeVo> listMyChangeRequests(String uid, int page, int pageSize) {
-        validatePage(page, pageSize);
+        PageParamUtils.validate(page, pageSize);
         LambdaQueryWrapper<UserProfileChange> wrapper = new LambdaQueryWrapper<UserProfileChange>()
                 .eq(UserProfileChange::getUid, uid)
                 .orderByDesc(UserProfileChange::getGmtCreate, UserProfileChange::getId);
@@ -117,7 +113,7 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
 
     @Override
     public PageVo<ProfileChangeVo> listAdminChangeRequests(int page, int pageSize, String status, String keyword) {
-        validatePage(page, pageSize);
+        PageParamUtils.validate(page, pageSize);
 
         String normalizedStatus = null;
         if (status != null && !status.trim().isEmpty()) {
@@ -185,7 +181,7 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
         userProfileChangeMapper.updateById(change);
 
         // 身份信息变更：提交后清理鉴权缓存（不改动任何角色/权限行）。
-        runAfterCommit(() -> clearUserAuthCache(change.getUid()));
+        userAuthStateService.afterCommit(() -> userAuthStateService.deleteUserAuthCache(change.getUid()));
         log.info("Profile change approved, id: {}, uid: {}, reviewer: {}", id, change.getUid(), reviewerUid);
     }
 
@@ -301,47 +297,12 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
         return trimmed;
     }
 
-    private void validatePage(int page, int pageSize) {
-        if (page <= 0 || pageSize <= 0) {
-            throw new BizException(ResultCode.BAD_REQUEST, "page 和 pageSize 必须大于 0");
-        }
-        if (pageSize > MAX_PAGE_SIZE) {
-            throw new BizException(ResultCode.BAD_REQUEST, "pageSize 不能超过 100");
-        }
-    }
-
     private PageVo<ProfileChangeVo> queryPage(int page, int pageSize,
                                               LambdaQueryWrapper<UserProfileChange> wrapper) {
         Page<UserProfileChange> mpPage = new Page<>(page, pageSize);
         Page<UserProfileChange> result = userProfileChangeMapper.selectPage(mpPage, wrapper);
         List<ProfileChangeVo> list = result.getRecords().stream().map(this::toVo).toList();
         return new PageVo<>(list, result.getTotal());
-    }
-
-    private void clearUserAuthCache(String uid) {
-        if (StrUtil.isBlank(uid)) {
-            return;
-        }
-        try {
-            stringRedisTemplate.delete(AuthCacheConstant.ROLE_CACHE_PREFIX + uid);
-            stringRedisTemplate.delete(AuthCacheConstant.PERMISSION_CACHE_PREFIX + uid);
-        } catch (Exception e) {
-            log.debug("Delete auth cache ignored, uid: {}, msg: {}", uid, e.getMessage());
-        }
-    }
-
-    private void runAfterCommit(Runnable action) {
-        if (TransactionSynchronizationManager.isActualTransactionActive()
-                && TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    action.run();
-                }
-            });
-            return;
-        }
-        action.run();
     }
 
     private String writeJson(ProfileIdentityVo identity) {

@@ -38,8 +38,4 @@ public class NoticeStatusConstant {
         }
         return normalized;
     }
-
-    public static boolean isValid(String status) {
-        return DRAFT.equals(status) || PUBLISHED.equals(status);
-    }
 }

@@ -131,7 +131,8 @@ public class TrainingAdminServiceImpl implements TrainingAdminService {
         vo.setTitle(training.getTitle());
         vo.setType(training.getType());
         vo.setAuth(training.getAuth());
-        vo.setPrivatePwd(training.getPrivatePwd());
+        // 密码不明文回显：恒返回 null，编辑表单留空表示保留原密码
+        vo.setPrivatePwd(null);
         vo.setDescription(training.getDescription());
         vo.setStatus(TrainingStatusConstant.isEnabled(training.getStatus()));
         vo.setRank(training.getRank());
@@ -184,7 +185,7 @@ public class TrainingAdminServiceImpl implements TrainingAdminService {
         training.setId(trainingId);
         training.setAuthor(existed.getAuthor());
         training.setGmtCreate(existed.getGmtCreate());
-        fillTrainingEntity(request, training);
+        fillTrainingEntity(request, training, existed.getPrivatePwd());
         trainingMapper.updateById(training);
 
         replaceTrainingProblems(trainingId, request.getProblems());
@@ -248,6 +249,14 @@ public class TrainingAdminServiceImpl implements TrainingAdminService {
      * @Date 2026/02/28
      */
     private void fillTrainingEntity(AdminTrainingSaveRequest request, Training training) {
+        fillTrainingEntity(request, training, null);
+    }
+
+    /**
+     * @param existingPrivatePwd 编辑场景的原密码：auth 为 private 且请求未填密码时保留原值；
+     *                           创建场景传 null，私有题单必须显式设置密码
+     */
+    private void fillTrainingEntity(AdminTrainingSaveRequest request, Training training, String existingPrivatePwd) {
         String normalizedType = TrainingTypeConstant.normalize(request.getType());
         if (normalizedType == null) {
             throw new BizException(ResultCode.BAD_REQUEST, "type 参数不合法");
@@ -259,7 +268,11 @@ public class TrainingAdminServiceImpl implements TrainingAdminService {
         }
         String privatePwd = TrainingServiceSupport.trimToNull(request.getPrivatePwd());
         if (TrainingAuthConstant.PRIVATE.equals(normalizedAuth) && privatePwd == null) {
-            throw new BizException(ResultCode.BAD_REQUEST, "私有题单必须设置 privatePwd");
+            if (existingPrivatePwd != null) {
+                privatePwd = existingPrivatePwd;
+            } else {
+                throw new BizException(ResultCode.BAD_REQUEST, "私有题单必须设置 privatePwd");
+            }
         }
         if (!TrainingAuthConstant.PRIVATE.equals(normalizedAuth)) {
             privatePwd = null;

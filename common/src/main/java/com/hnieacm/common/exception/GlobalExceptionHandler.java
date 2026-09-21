@@ -10,6 +10,7 @@ import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -113,6 +114,20 @@ public class GlobalExceptionHandler {
     public Result<?> handleNoResourceFoundException(NoResourceFoundException e) {
         log.warn("接口不存在: {}", e.getMessage());
         return Result.error(ResultCode.NOT_FOUND, "接口不存在");
+    }
+
+    /**
+     * @MethodName handleTypeMismatchException
+     * @Param e
+     * @Description 处理路径/查询参数类型不匹配异常（如数值端点收到非数字入参）
+     * @Return @return {@link Result }<{@link ? }>
+     * @Author HaoRan_Lyu
+     * @Date 2026/09/21
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public Result<?> handleTypeMismatchException(MethodArgumentTypeMismatchException e) {
+        log.warn("参数类型不匹配: {} -> {}", e.getName(), e.getValue());
+        return Result.error(ResultCode.BAD_REQUEST, "参数类型不匹配: " + e.getName());
     }
 
     /**

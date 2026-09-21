@@ -116,16 +116,19 @@ public class ProblemTagConfigServiceImpl implements ProblemTagConfigService {
             if (desiredNames.contains(tag.getName())) {
                 continue;
             }
-            // 与 TagServiceImpl.deleteTag、ensureTags 使用同一把 tag 行锁串行化，
-            // 避免删除与题目维护标签关联并发时产生悬挂的 problem_tag 引用。
+            // 与 TagServiceImpl.deleteTag、ensureTags 使用同一把 tag 行锁串行化：
+            // 三条路径都先锁 tag 行，再读写 problem_tag，故删除与建关联不会交错。
             Tag locked = tagMapper.selectOne(
                     new LambdaQueryWrapper<Tag>().eq(Tag::getId, tag.getId()).last("FOR UPDATE"));
             if (locked == null) {
                 continue;
             }
-            Long usedCount = problemTagMapper.selectCount(new LambdaQueryWrapper<ProblemTag>()
-                    .eq(ProblemTag::getTid, tag.getId()));
-            if (usedCount != null && usedCount > 0) {
+            // 引用检查必须是当前读：本事务在 save() 开头已用普通 SELECT 建立 REPEATABLE READ 快照，
+            // 普通 SELECT 会沿用旧快照而看不到并发事务刚提交的关联，导致误删仍被引用的标签。
+            List<ProblemTag> references = problemTagMapper.selectList(new LambdaQueryWrapper<ProblemTag>()
+                    .eq(ProblemTag::getTid, tag.getId())
+                    .last("LIMIT 1 FOR UPDATE"));
+            if (!references.isEmpty()) {
                 throw new BizException(ResultCode.BAD_REQUEST, "标签已被题目使用，不能删除：" + tag.getName());
             }
             tagMapper.deleteById(tag.getId());

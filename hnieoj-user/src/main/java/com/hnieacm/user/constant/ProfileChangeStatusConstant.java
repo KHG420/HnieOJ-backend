@@ -34,8 +34,4 @@ public class ProfileChangeStatusConstant {
         }
         return normalized;
     }
-
-    public static boolean isValid(String status) {
-        return PENDING.equals(status) || APPROVED.equals(status) || REJECTED.equals(status);
-    }
 }

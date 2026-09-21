@@ -2,6 +2,7 @@ package com.hnieacm.user.service.impl;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.hnieacm.common.exception.BizException;
 import com.hnieacm.user.constant.UserProfileChangeStatus;
 import com.hnieacm.user.entity.UserInfo;
 import com.hnieacm.user.entity.UserProfileChangeApply;
@@ -23,9 +24,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -94,6 +97,50 @@ class UserProfileChangeServiceImplMergeLockTest {
         assertThat(user.getPassword()).isEqualTo("existing-hash");
         assertThat(apply.getStatus()).isEqualTo(UserProfileChangeStatus.APPROVED);
         assertThat(apply.getReviewerUid()).isEqualTo("admin");
+    }
+
+    @Test
+    void approveRejectsLegacyApplyCarryingIdentityFields() {
+        UserProfileChangeApply apply = new UserProfileChangeApply();
+        apply.setUid("u1");
+        apply.setStatus(UserProfileChangeStatus.PENDING);
+        apply.setRealname("张三");
+        when(changeApplyMapper.selectOne(any())).thenReturn(apply);
+
+        // 旧版通用流程遗留的待审记录含身份字段：显式拒绝，不静默跳过、不改写 user_info。
+        assertThatThrownBy(() -> service.approve("u1"))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("身份字段");
+        verifyNoInteractions(userInfoMapper);
+    }
+
+    @Test
+    void approveDoesNotOverwriteIdentityFields() {
+        UserProfileChangeApply apply = new UserProfileChangeApply();
+        apply.setUid("u1");
+        apply.setStatus(UserProfileChangeStatus.PENDING);
+        apply.setPhone("13800000000");
+        when(changeApplyMapper.selectOne(any())).thenReturn(apply);
+
+        UserInfo user = new UserInfo();
+        user.setUid("u1");
+        user.setRealname("原姓名");
+        user.setCollegeId(7L);
+        user.setGrade("2024");
+        user.setClassId(9L);
+        when(userInfoMapper.selectOne(any())).thenReturn(user);
+
+        try (MockedStatic<StpUtil> stpUtil = mockStatic(StpUtil.class)) {
+            stpUtil.when(StpUtil::getLoginIdAsString).thenReturn("admin");
+            service.approve("u1");
+        }
+
+        assertThat(user.getPhone()).isEqualTo("13800000000");
+        // 身份字段由身份资料变更流程独占受理，通用流程一律不得改写。
+        assertThat(user.getRealname()).isEqualTo("原姓名");
+        assertThat(user.getCollegeId()).isEqualTo(7L);
+        assertThat(user.getGrade()).isEqualTo("2024");
+        assertThat(user.getClassId()).isEqualTo(9L);
     }
 
     @Test

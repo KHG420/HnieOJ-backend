@@ -55,7 +55,7 @@ class ProblemTagConfigServiceImplTest {
         ));
         // deleteRemovedUnusedTags 先按 id 锁定 tag 行（FOR UPDATE），返回被删的 dp
         when(tagMapper.selectOne(any())).thenReturn(tag(2L, "dp", "算法"));
-        when(problemTagMapper.selectCount(org.mockito.ArgumentMatchers.<Wrapper<ProblemTag>>any())).thenReturn(0L);
+        when(problemTagMapper.selectList(any())).thenReturn(List.of());
 
         service.save(request(group("算法", List.of("math", "graph"))));
 
@@ -73,11 +73,28 @@ class ProblemTagConfigServiceImplTest {
         when(tagMapper.selectList(any())).thenReturn(List.of(tag(1L, "dp", "算法")));
         // deleteRemovedUnusedTags 先按 id 锁定 tag 行（FOR UPDATE），返回被删的 dp
         when(tagMapper.selectOne(any())).thenReturn(tag(1L, "dp", "算法"));
-        when(problemTagMapper.selectCount(org.mockito.ArgumentMatchers.<Wrapper<ProblemTag>>any())).thenReturn(1L);
+        when(problemTagMapper.selectList(any())).thenReturn(List.of(new ProblemTag()));
 
         assertThatThrownBy(() -> service.save(request(group("算法", List.of("graph")))))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("标签已被题目使用");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldCheckTagReferencesWithLockingReadWhenDeleting() {
+        ProblemTagConfigServiceImpl service = new ProblemTagConfigServiceImpl(tagMapper, problemTagMapper);
+        when(tagMapper.selectList(any())).thenReturn(List.of(tag(1L, "dp", "算法")));
+        when(tagMapper.selectOne(any())).thenReturn(tag(1L, "dp", "算法"));
+        when(problemTagMapper.selectList(any())).thenReturn(List.of());
+
+        service.save(request(group("算法", List.of("graph"))));
+
+        // save() 开头的普通 SELECT 已建立 REPEATABLE READ 快照，引用检查必须用当前读（FOR UPDATE）
+        // 才能看到并发事务刚提交的关联，否则会删掉仍被引用的标签。
+        ArgumentCaptor<Wrapper<ProblemTag>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(problemTagMapper).selectList(wrapperCaptor.capture());
+        assertThat(wrapperCaptor.getValue().getSqlSegment()).containsIgnoringCase("FOR UPDATE");
     }
 
     private SaveTagConfigRequest request(TagGroupRequest... groups) {

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hnieacm.common.dto.PageVo;
 import com.hnieacm.common.exception.BizException;
 import com.hnieacm.common.result.ResultCode;
+import com.hnieacm.common.util.PageParamUtils;
 import com.hnieacm.user.entity.UserMessage;
 import com.hnieacm.user.mapper.UserMessageMapper;
 import com.hnieacm.user.service.UserMessageService;
@@ -26,13 +27,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UserMessageServiceImpl implements UserMessageService {
 
-    private static final int MAX_PAGE_SIZE = 100;
-
     private final UserMessageMapper userMessageMapper;
 
     @Override
     public PageVo<UserMessageVo> listMyMessages(String uid, int page, int pageSize, Boolean unread) {
-        validatePage(page, pageSize);
+        PageParamUtils.validate(page, pageSize);
 
         LambdaQueryWrapper<UserMessage> wrapper = new LambdaQueryWrapper<UserMessage>()
                 .eq(UserMessage::getRecipientUid, uid)
@@ -106,15 +105,6 @@ public class UserMessageServiceImpl implements UserMessageService {
             throw new BizException(ResultCode.NOT_FOUND, "消息不存在");
         }
         return message;
-    }
-
-    private void validatePage(int page, int pageSize) {
-        if (page <= 0 || pageSize <= 0) {
-            throw new BizException(ResultCode.BAD_REQUEST, "page 和 pageSize 必须大于 0");
-        }
-        if (pageSize > MAX_PAGE_SIZE) {
-            throw new BizException(ResultCode.BAD_REQUEST, "pageSize 不能超过 100");
-        }
     }
 
     private UserMessageVo toVo(UserMessage message) {

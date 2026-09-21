@@ -6,7 +6,6 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.hnieacm.common.constant.AuthCacheConstant;
 import com.hnieacm.common.constant.RoleConstant;
 import com.hnieacm.common.exception.BizException;
 import com.hnieacm.common.result.ResultCode;
@@ -25,14 +24,12 @@ import com.hnieacm.user.mapper.UserRoleMapper;
 import com.hnieacm.user.properties.UserManageProperties;
 import com.hnieacm.user.service.UserProfileService;
 import com.hnieacm.user.service.manager.UserInfoManager;
+import com.hnieacm.user.service.support.UserAuthStateService;
 import com.hnieacm.user.vo.UserProfileVo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -66,15 +63,7 @@ public class UserProfileServiceImpl implements UserProfileService {
     private final UserRoleMapper userRoleMapper;
     private final RoleMapper roleMapper;
     private final UserManageProperties userManageProperties;
-    private final StringRedisTemplate stringRedisTemplate;
-
-    /**
-     * 兼容上游无参入口：以服务端登录态 uid 读取本人资料。
-     */
-    @Override
-    public UserProfileVo getCurrentUserProfile() {
-        return getCurrentUserProfile(StpUtil.getLoginIdAsString());
-    }
+    private final UserAuthStateService userAuthStateService;
 
     /**
      * @MethodName getCurrentUserProfile
@@ -142,7 +131,7 @@ public class UserProfileServiceImpl implements UserProfileService {
         userInfoMapper.updateById(user);
 
         // 密码已变更：事务提交后失效该用户全部会话，回滚/旧密码错误均不注销。
-        runAfterCommit(() -> invalidateSessions(uid));
+        userAuthStateService.afterCommit(() -> invalidateSessions(uid));
     }
 
     /**
@@ -235,58 +224,15 @@ public class UserProfileServiceImpl implements UserProfileService {
         userInfoMapper.updateById(user);
 
         // 密码已变更：事务提交后失效该用户全部会话，避免未提交就踢下线。
-        runAfterCommit(() -> invalidateSessions(uid));
+        userAuthStateService.afterCommit(() -> invalidateSessions(uid));
     }
 
     /**
-     * 事务提交后失效用户全部会话（含清理鉴权缓存）。包级可见以便单元测试在不启动 Sa-Token 上下文时替换。
+     * 事务提交后失效用户全部会话（含清理鉴权缓存），单点逻辑见 {@link UserAuthStateService}。
+     * 包级可见以便单元测试在不启动 Sa-Token 上下文时替换。
      */
     void invalidateSessions(String uid) {
-        try {
-            List<String> tokenValues = StpUtil.getTokenValueListByLoginId(uid);
-            if (tokenValues != null && !tokenValues.isEmpty()) {
-                for (String tokenValue : tokenValues) {
-                    if (StrUtil.isNotBlank(tokenValue)) {
-                        StpUtil.logoutByTokenValue(tokenValue.trim());
-                    }
-                }
-            }
-            StpUtil.logout(uid);
-            StpUtil.kickout(uid);
-        } catch (Exception e) {
-            log.debug("Kickout ignored, uid: {}, msg: {}", uid, e.getMessage());
-        } finally {
-            deleteUserAuthCache(uid);
-        }
-    }
-
-    private void deleteUserAuthCache(String uid) {
-        if (StrUtil.isBlank(uid)) {
-            return;
-        }
-        try {
-            stringRedisTemplate.delete(AuthCacheConstant.ROLE_CACHE_PREFIX + uid);
-            stringRedisTemplate.delete(AuthCacheConstant.PERMISSION_CACHE_PREFIX + uid);
-        } catch (Exception e) {
-            log.debug("Delete auth cache ignored, uid: {}, msg: {}", uid, e.getMessage());
-        }
-    }
-
-    /**
-     * 事务内登记 afterCommit 回调；无事务时立即执行。
-     */
-    private void runAfterCommit(Runnable action) {
-        if (TransactionSynchronizationManager.isActualTransactionActive()
-                && TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    action.run();
-                }
-            });
-            return;
-        }
-        action.run();
+        userAuthStateService.kickoutUserSafely(uid);
     }
 
     /**

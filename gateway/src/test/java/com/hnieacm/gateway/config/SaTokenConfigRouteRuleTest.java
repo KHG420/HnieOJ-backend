@@ -6,7 +6,6 @@ import cn.dev33.satoken.spring.pathmatch.SaPathPatternParserUtil;
 import cn.dev33.satoken.stp.StpInterface;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.dev33.satoken.strategy.SaStrategy;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hnieacm.common.constant.PermissionConstant;
 import com.hnieacm.common.constant.RoleConstant;
@@ -276,30 +275,7 @@ class SaTokenConfigRouteRuleTest {
 
     @Test
     void gatewayYamlRoutesTagPathsToProblemService() throws Exception {
-        Path yaml = locateRepoFile("deploy/nacos/dev/DEFAULT_GROUP/gateway.yaml");
-        List<String> lines = Files.readAllLines(yaml);
-
-        int problemRouteIndex = -1;
-        for (int i = 0; i < lines.size(); i++) {
-            if (lines.get(i).trim().equals("- id: hnieoj-problem")) {
-                problemRouteIndex = i;
-                break;
-            }
-        }
-        assertThat(problemRouteIndex).as("hnieoj-problem route must exist").isGreaterThanOrEqualTo(0);
-
-        String pathLine = null;
-        for (int i = problemRouteIndex + 1; i < lines.size(); i++) {
-            String trimmed = lines.get(i).trim();
-            if (trimmed.startsWith("- Path=")) {
-                pathLine = trimmed;
-                break;
-            }
-            if (trimmed.startsWith("- id: ")) {
-                break;
-            }
-        }
-        assertThat(pathLine).as("hnieoj-problem route must declare a Path predicate").isNotNull();
+        String pathLine = readRoutePathPredicate("hnieoj-problem");
         assertThat(pathLine).contains("/api/tags").contains("/api/admin/tags/**");
     }
 
@@ -363,20 +339,36 @@ class SaTokenConfigRouteRuleTest {
 
     @Test
     void gatewayYamlRoutesNoticeAndProfileChangeToUserService() throws Exception {
+        String pathLine = readRoutePathPredicate("hnieoj-user");
+        assertThat(pathLine)
+                .contains("/api/admin/notices")
+                .contains("/api/admin/notices/**")
+                .contains("/api/admin/profile-change-requests")
+                .contains("/api/admin/profile-change-requests/**")
+                .contains("/api/user/**");
+    }
+
+    /**
+     * 从 gateway.yaml 中读取指定服务路由的 Path 谓词行。
+     *
+     * @param routeId 路由 id（如 hnieoj-problem）
+     * @return Path 谓词行内容（去除首尾空白）
+     */
+    private static String readRoutePathPredicate(String routeId) throws Exception {
         Path yaml = locateRepoFile("deploy/nacos/dev/DEFAULT_GROUP/gateway.yaml");
         List<String> lines = Files.readAllLines(yaml);
 
-        int userRouteIndex = -1;
+        int routeIndex = -1;
         for (int i = 0; i < lines.size(); i++) {
-            if (lines.get(i).trim().equals("- id: hnieoj-user")) {
-                userRouteIndex = i;
+            if (lines.get(i).trim().equals("- id: " + routeId)) {
+                routeIndex = i;
                 break;
             }
         }
-        assertThat(userRouteIndex).as("hnieoj-user route must exist").isGreaterThanOrEqualTo(0);
+        assertThat(routeIndex).as(routeId + " route must exist").isGreaterThanOrEqualTo(0);
 
         String pathLine = null;
-        for (int i = userRouteIndex + 1; i < lines.size(); i++) {
+        for (int i = routeIndex + 1; i < lines.size(); i++) {
             String trimmed = lines.get(i).trim();
             if (trimmed.startsWith("- Path=")) {
                 pathLine = trimmed;
@@ -386,13 +378,8 @@ class SaTokenConfigRouteRuleTest {
                 break;
             }
         }
-        assertThat(pathLine).as("hnieoj-user route must declare a Path predicate").isNotNull();
-        assertThat(pathLine)
-                .contains("/api/admin/notices")
-                .contains("/api/admin/notices/**")
-                .contains("/api/admin/profile-change-requests")
-                .contains("/api/admin/profile-change-requests/**")
-                .contains("/api/user/**");
+        assertThat(pathLine).as(routeId + " route must declare a Path predicate").isNotNull();
+        return pathLine;
     }
 
     private static Path locateRepoFile(String relativePath) {

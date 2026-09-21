@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hnieacm.common.dto.PageVo;
 import com.hnieacm.common.exception.BizException;
 import com.hnieacm.common.result.ResultCode;
+import com.hnieacm.common.util.PageParamUtils;
 import com.hnieacm.user.constant.NoticeStatusConstant;
 import com.hnieacm.user.constant.NoticeTargetTypeConstant;
 import com.hnieacm.user.dto.NoticeSaveRequest;
@@ -44,8 +45,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class NoticeAdminServiceImpl implements NoticeAdminService {
 
-    private static final int MAX_PAGE_SIZE = 100;
-
     private static final int MAX_TARGET_COUNT = 1000;
 
     /**
@@ -63,7 +62,7 @@ public class NoticeAdminServiceImpl implements NoticeAdminService {
 
     @Override
     public PageVo<UserNoticeListVo> listNotices(int page, int pageSize, String keyword, String status) {
-        validatePage(page, pageSize);
+        PageParamUtils.validate(page, pageSize);
 
         String normalizedStatus = null;
         if (status != null && !status.trim().isEmpty()) {
@@ -190,15 +189,6 @@ public class NoticeAdminServiceImpl implements NoticeAdminService {
         notice.setGmtModified(null);
         userNoticeMapper.updateById(notice);
         log.info("Notice published, id: {}, recipients: {}", notice.getId(), recipients.size());
-    }
-
-    private void validatePage(int page, int pageSize) {
-        if (page <= 0 || pageSize <= 0) {
-            throw new BizException(ResultCode.BAD_REQUEST, "page 和 pageSize 必须大于 0");
-        }
-        if (pageSize > MAX_PAGE_SIZE) {
-            throw new BizException(ResultCode.BAD_REQUEST, "pageSize 不能超过 100");
-        }
     }
 
     private UserNotice requireNotice(Long id) {

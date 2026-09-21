@@ -105,6 +105,7 @@ public class UserProfileChangeServiceImpl implements UserProfileChangeService {
     @Transactional(rollbackFor = Exception.class)
     public void approve(String uid) {
         UserProfileChangeApply apply = getPendingApply(uid);
+        rejectLegacyIdentityPayload(apply);
         // 通用资料申请与身份资料申请（UserProfileChange）都会写同一 user_info 行，
         // 审批前必须在事务内锁定用户行，避免两套申请并发审批相互覆盖其它资料/密码。
         UserInfo user = userInfoMapper.selectOne(
@@ -198,6 +199,21 @@ public class UserProfileChangeServiceImpl implements UserProfileChangeService {
     }
 
     /**
+     * 旧版通用流程允许一次提交含身份字段的申请；这类历史待审记录不能由本流程批准，
+     * 否则会覆盖身份流程的结果。此处显式拒绝并指向正确流程，不做静默跳过。
+     */
+    private void rejectLegacyIdentityPayload(UserProfileChangeApply apply) {
+        if (apply.getCollegeId() != null
+                || apply.getClassId() != null
+                || StrUtil.isNotBlank(apply.getGrade())
+                || StrUtil.isNotBlank(apply.getRealname())) {
+            throw new BizException(ResultCode.BAD_REQUEST,
+                    "该申请为旧版通用流程创建且包含身份字段，不能由通用资料流程审批；"
+                            + "请驳回该申请，由用户通过身份资料变更申请（/api/user/profile-change-requests）重新提交");
+        }
+    }
+
+    /**
      * 身份字段由身份资料变更流程独占受理；本流程拒绝携带身份字段的请求，
      * 避免两条流程同时待审、串行审批时互相覆盖同一 user_info 行的身份字段。
      */
@@ -229,10 +245,6 @@ public class UserProfileChangeServiceImpl implements UserProfileChangeService {
         apply.setEmail(StrUtil.trimToNull(request.getEmail()));
         apply.setPhone(StrUtil.trimToNull(request.getPhone()));
         apply.setAvatar(StrUtil.trimToNull(request.getAvatar()));
-        apply.setCollegeId(request.getCollegeId());
-        apply.setClassId(request.getClassId());
-        apply.setGrade(StrUtil.trimToNull(request.getGrade()));
-        apply.setRealname(StrUtil.trimToNull(request.getRealname()));
         apply.setQq(StrUtil.trimToNull(request.getQq()));
         apply.setCfUsername(StrUtil.trimToNull(request.getCfUsername()));
         apply.setGithub(StrUtil.trimToNull(request.getGithub()));
@@ -270,18 +282,8 @@ public class UserProfileChangeServiceImpl implements UserProfileChangeService {
         if (apply.getAvatar() != null) {
             user.setAvatar(apply.getAvatar());
         }
-        if (apply.getCollegeId() != null) {
-            user.setCollegeId(apply.getCollegeId());
-        }
-        if (apply.getClassId() != null) {
-            user.setClassId(apply.getClassId());
-        }
-        if (apply.getGrade() != null) {
-            user.setGrade(apply.getGrade());
-        }
-        if (apply.getRealname() != null) {
-            user.setRealname(apply.getRealname());
-        }
+        // 身份字段（realname/collegeId/grade/classId）由 ProfileChangeServiceImpl 独占受理，
+        // 本流程一律不写，避免两条流程串行审批时互相覆盖。
         if (apply.getQq() != null) {
             user.setQq(apply.getQq());
         }
