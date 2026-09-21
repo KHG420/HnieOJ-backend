@@ -8,7 +8,9 @@ import com.hnieacm.common.dto.PageVo;
 import com.hnieacm.common.exception.BizException;
 import com.hnieacm.common.result.ResultCode;
 import com.hnieacm.common.util.PageParamUtils;
+import com.hnieacm.user.constant.ProfileChangeField;
 import com.hnieacm.user.constant.ProfileChangeStatusConstant;
+import com.hnieacm.user.dto.BatchIdsRequest;
 import com.hnieacm.user.dto.ProfileChangeCreateRequest;
 import com.hnieacm.user.entity.SysClass;
 import com.hnieacm.user.entity.SysCollege;
@@ -20,8 +22,10 @@ import com.hnieacm.user.mapper.UserInfoMapper;
 import com.hnieacm.user.mapper.UserProfileChangeMapper;
 import com.hnieacm.user.service.ProfileChangeService;
 import com.hnieacm.user.service.support.UserAuthStateService;
+import com.hnieacm.user.service.support.UserManageValidator;
+import com.hnieacm.user.vo.BatchOperationResultVo;
 import com.hnieacm.user.vo.ProfileChangeVo;
-import com.hnieacm.user.vo.ProfileIdentityVo;
+import com.hnieacm.user.vo.ProfileSnapshotVo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,14 +35,24 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * @Author: HaoRan_Lyu
- * @Date: 2026/09/20
- * @Description: 用户身份资料变更申请服务实现（身份流程，按 id 审批，含原值一致性校验）。
- * <p>流程分工：本流程独占受理身份字段（realname/college/grade/class）；
- * 联系/社交字段（username/email/phone/avatar/qq/cf/github/blog）由
- * {@link UserProfileChangeServiceImpl} 的通用资料流程（按 uid 审批）受理。</p>
+ * @Date: 2026/09/21
+ * @Description: 用户资料变更申请服务实现（**唯一**的资料变更流程，按 id 审批）。
+ *
+ * <h3>合并背景（BE-03.6 / W5）</h3>
+ * 原先两套流程并存：本流程（表 user_profile_change，按 id 审）独占身份字段；
+ * UserProfileChangeServiceImpl（表 user_profile_change_apply，按 uid 审）受理联系/社交字段。
+ * 两条待审记录可先后覆盖同一 user_info 行。现在收敛为本流程一处：
+ * <ul>
+ *   <li>字段全集见 {@link ProfileChangeField}（4 个身份 + 8 个联系/社交）；</li>
+ *   <li>original/proposed 用 {@link ProfileSnapshotVo} 全量快照，历史身份 JSON 仍可反序列化；</li>
+ *   <li>只有 original 与 proposed 不同的字段才算「本申请要改的字段」，逐字段做原值一致性校验并写回，
+ *       因此别的申请改了无关字段不会让本条申请误判失效，两条流程互相覆盖的问题从根上消失；</li>
+ *   <li>审批粒度仍是申请 id，批量审批按 id 列表（{@link #batchApprove}）。</li>
+ * </ul>
  */
 @Slf4j
 @Service
@@ -52,6 +66,7 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
     private final SysCollegeMapper sysCollegeMapper;
     private final SysClassMapper sysClassMapper;
     private final UserAuthStateService userAuthStateService;
+    private final UserManageValidator userManageValidator;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -61,24 +76,9 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
             throw new BizException(ResultCode.BAD_REQUEST, "请求参数不能为空");
         }
         // 用户行锁：同一用户并发提交串行化，保证仅一条待审申请。
-        UserInfo user = userInfoMapper.selectOne(
-                new LambdaQueryWrapper<UserInfo>().eq(UserInfo::getUid, uid).last("FOR UPDATE")
-        );
-        if (user == null) {
-            throw new BizException(ResultCode.USER_NOT_FOUND, "用户不存在");
-        }
+        UserInfo user = lockUser(uid);
+        ensureNoPendingRequest(uid);
 
-        Long pendingCount = userProfileChangeMapper.selectCount(
-                new LambdaQueryWrapper<UserProfileChange>()
-                        .eq(UserProfileChange::getUid, uid)
-                        .eq(UserProfileChange::getStatus, ProfileChangeStatusConstant.PENDING)
-        );
-        if (pendingCount != null && pendingCount > 0) {
-            throw new BizException(ResultCode.BAD_REQUEST, "已存在待审核的变更申请");
-        }
-
-        String realname = validateIdentity(request.getRealname(), request.getCollegeId(),
-                request.getGrade(), request.getClassId());
         String reason = StrUtil.trim(request.getReason());
         if (StrUtil.isBlank(reason)) {
             throw new BizException(ResultCode.BAD_REQUEST, "reason 不能为空");
@@ -87,10 +87,15 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
             throw new BizException(ResultCode.BAD_REQUEST, "reason 长度不能超过 1000");
         }
 
-        ProfileIdentityVo original = new ProfileIdentityVo(
-                user.getRealname(), user.getCollegeId(), user.getGrade(), user.getClassId());
-        ProfileIdentityVo proposed = new ProfileIdentityVo(
-                realname, request.getCollegeId(), request.getGrade().trim(), request.getClassId());
+        ProfileSnapshotVo original = ProfileSnapshotVo.of(user);
+        ProfileSnapshotVo proposed = ProfileSnapshotVo.of(user);
+        mergeRequest(proposed, request);
+
+        Set<ProfileChangeField> changedFields = original.changedFields(proposed);
+        if (changedFields.isEmpty()) {
+            throw new BizException(ResultCode.BAD_REQUEST, "至少提交一个修改字段");
+        }
+        validateProposed(changedFields, proposed, uid);
 
         UserProfileChange change = new UserProfileChange();
         change.setUid(uid);
@@ -99,7 +104,8 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
         change.setReason(reason);
         change.setStatus(ProfileChangeStatusConstant.PENDING);
         userProfileChangeMapper.insert(change);
-        log.info("Profile change request created, id: {}, uid: {}", change.getId(), uid);
+        log.info("Profile change request created, id: {}, uid: {}, fields: {}",
+                change.getId(), uid, changedFields);
     }
 
     @Override
@@ -149,26 +155,27 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
             throw new BizException(ResultCode.BAD_REQUEST, "申请已驳回，不能再次通过");
         }
 
-        UserInfo user = userInfoMapper.selectOne(
-                new LambdaQueryWrapper<UserInfo>().eq(UserInfo::getUid, change.getUid()).last("FOR UPDATE")
-        );
-        if (user == null) {
-            throw new BizException(ResultCode.USER_NOT_FOUND, "用户不存在");
+        UserInfo user = lockUser(change.getUid());
+
+        ProfileSnapshotVo original = readJson(change.getOriginal());
+        ProfileSnapshotVo proposed = readJson(change.getProposed());
+        Set<ProfileChangeField> changedFields = original.changedFields(proposed);
+        if (changedFields.isEmpty()) {
+            throw new BizException(ResultCode.BAD_REQUEST, "申请内容不包含任何字段变更，无法通过");
         }
 
-        ProfileIdentityVo original = readJson(change.getOriginal());
-        if (!identityMatchesUser(user, original)) {
-            throw new BizException(ResultCode.BAD_REQUEST, "用户资料已发生变化，申请已失效");
+        // 逐字段原值一致性：只有当用户当前值仍等于申请时的原值才允许写回，
+        // 否则说明期间已有其它变更落库，本次直接作废而不是覆盖。
+        for (ProfileChangeField field : changedFields) {
+            if (!original.matchesUserField(field, user)) {
+                throw new BizException(ResultCode.BAD_REQUEST, "用户资料已发生变化，申请已失效");
+            }
         }
+        validateProposed(changedFields, proposed, change.getUid());
 
-        ProfileIdentityVo proposed = readJson(change.getProposed());
-        String realname = validateIdentity(proposed.getRealname(), proposed.getCollegeId(),
-                proposed.getGrade(), proposed.getClassId());
-
-        user.setRealname(realname);
-        user.setCollegeId(proposed.getCollegeId());
-        user.setGrade(proposed.getGrade().trim());
-        user.setClassId(proposed.getClassId());
+        for (ProfileChangeField field : changedFields) {
+            proposed.applyTo(user, field);
+        }
         userInfoMapper.updateById(user);
 
         LocalDateTime now = LocalDateTime.now();
@@ -180,9 +187,13 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
         change.setGmtModified(null);
         userProfileChangeMapper.updateById(change);
 
-        // 身份信息变更：提交后清理鉴权缓存（不改动任何角色/权限行）。
-        userAuthStateService.afterCommit(() -> userAuthStateService.deleteUserAuthCache(change.getUid()));
-        log.info("Profile change approved, id: {}, uid: {}, reviewer: {}", id, change.getUid(), reviewerUid);
+        // 身份信息变更会影响鉴权展示/缓存，提交后清理（不改动任何角色/权限行）；
+        // 纯联系/社交字段变更不影响鉴权，不做无谓的缓存抖动。
+        if (changedFields.stream().anyMatch(ProfileChangeField::isIdentity)) {
+            userAuthStateService.afterCommit(() -> userAuthStateService.deleteUserAuthCache(change.getUid()));
+        }
+        log.info("Profile change approved, id: {}, uid: {}, reviewer: {}, fields: {}",
+                id, change.getUid(), reviewerUid, changedFields);
     }
 
     @Override
@@ -210,23 +221,108 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
         log.info("Profile change rejected, id: {}, uid: {}, reviewer: {}", id, change.getUid(), reviewerUid);
     }
 
-    private UserProfileChange requireLockedChange(Long id) {
-        if (id == null) {
-            throw new BizException(ResultCode.BAD_REQUEST, "id 不能为空");
+    @Override
+    public BatchOperationResultVo batchApprove(BatchIdsRequest request, String reviewerUid) {
+        if (request == null || request.getIds() == null || request.getIds().isEmpty()) {
+            throw new BizException(ResultCode.BAD_REQUEST, "ids 不能为空");
         }
-        UserProfileChange change = userProfileChangeMapper.selectOne(
-                new LambdaQueryWrapper<UserProfileChange>().eq(UserProfileChange::getId, id).last("FOR UPDATE")
+        BatchOperationResultVo result = new BatchOperationResultVo();
+        request.getIds().stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .forEach(id -> {
+                    try {
+                        approve(id, null, reviewerUid);
+                        result.addSuccess();
+                    } catch (Exception e) {
+                        result.addFailure(String.valueOf(id), e.getMessage());
+                    }
+                });
+        return result;
+    }
+
+    private UserInfo lockUser(String uid) {
+        UserInfo user = userInfoMapper.selectOne(
+                new LambdaQueryWrapper<UserInfo>().eq(UserInfo::getUid, uid).last("FOR UPDATE")
         );
-        if (change == null) {
-            throw new BizException(ResultCode.NOT_FOUND, "变更申请不存在");
+        if (user == null) {
+            throw new BizException(ResultCode.USER_NOT_FOUND, "用户不存在");
         }
-        return change;
+        return user;
+    }
+
+    private void ensureNoPendingRequest(String uid) {
+        Long pendingCount = userProfileChangeMapper.selectCount(
+                new LambdaQueryWrapper<UserProfileChange>()
+                        .eq(UserProfileChange::getUid, uid)
+                        .eq(UserProfileChange::getStatus, ProfileChangeStatusConstant.PENDING)
+        );
+        if (pendingCount != null && pendingCount > 0) {
+            throw new BizException(ResultCode.BAD_REQUEST, "已存在待审核的变更申请");
+        }
     }
 
     /**
-     * 校验实名/学院/年级/班级归属，返回 trim 后的实名。
+     * 把请求里**显式提供**的字段写入 proposed；未提供（null）的字段保持为用户当前值，
+     * 因此不会进入「本申请要改的字段」。
      */
-    private String validateIdentity(String realname, Long collegeId, String grade, Long classId) {
+    private void mergeRequest(ProfileSnapshotVo proposed, ProfileChangeCreateRequest request) {
+        putIfPresent(proposed, ProfileChangeField.REALNAME, StrUtil.trimToNull(request.getRealname()));
+        putIfPresent(proposed, ProfileChangeField.COLLEGE_ID, request.getCollegeId());
+        putIfPresent(proposed, ProfileChangeField.GRADE, StrUtil.trimToNull(request.getGrade()));
+        putIfPresent(proposed, ProfileChangeField.CLASS_ID, request.getClassId());
+        putIfPresent(proposed, ProfileChangeField.USERNAME, StrUtil.trimToNull(request.getUsername()));
+        putIfPresent(proposed, ProfileChangeField.EMAIL, StrUtil.trimToNull(request.getEmail()));
+        putIfPresent(proposed, ProfileChangeField.PHONE, StrUtil.trimToNull(request.getPhone()));
+        putIfPresent(proposed, ProfileChangeField.AVATAR, StrUtil.trimToNull(request.getAvatar()));
+        putIfPresent(proposed, ProfileChangeField.QQ, StrUtil.trimToNull(request.getQq()));
+        putIfPresent(proposed, ProfileChangeField.CF_USERNAME, StrUtil.trimToNull(request.getCfUsername()));
+        putIfPresent(proposed, ProfileChangeField.GITHUB, StrUtil.trimToNull(request.getGithub()));
+        putIfPresent(proposed, ProfileChangeField.BLOG, StrUtil.trimToNull(request.getBlog()));
+    }
+
+    private void putIfPresent(ProfileSnapshotVo proposed, ProfileChangeField field, Object value) {
+        if (value != null) {
+            proposed.put(field, value);
+        }
+    }
+
+    /**
+     * 按待变更字段做校验。
+     * <p>身份字段只要有一个要改，就按原身份流程的口径整体校验（实名/学院/年级/班级四项齐全且互相匹配），
+     * 因为 proposed 里的这四项始终是完整值。</p>
+     */
+    private void validateProposed(Set<ProfileChangeField> changedFields, ProfileSnapshotVo proposed, String uid) {
+        boolean identityChanged = changedFields.stream().anyMatch(ProfileChangeField::isIdentity);
+        if (identityChanged) {
+            validateIdentity(proposed.getRealname(), proposed.getCollegeId(),
+                    proposed.getGrade(), proposed.getClassId());
+        }
+        for (ProfileChangeField field : changedFields) {
+            Object value = proposed.valueOf(field);
+            if (value instanceof String text && field.getDdlMaxLength() != null
+                    && text.length() > field.getDdlMaxLength()) {
+                throw new BizException(ResultCode.BAD_REQUEST,
+                        field.getKey() + " 长度不能超过 " + field.getDdlMaxLength());
+            }
+        }
+        if (changedFields.contains(ProfileChangeField.USERNAME)) {
+            userManageValidator.validateUsernameLength(proposed.getUsername());
+        }
+        if (changedFields.contains(ProfileChangeField.EMAIL)) {
+            Long emailCount = userInfoMapper.selectCount(new LambdaQueryWrapper<UserInfo>()
+                    .eq(UserInfo::getEmail, proposed.getEmail())
+                    .ne(UserInfo::getUid, uid));
+            if (emailCount != null && emailCount > 0) {
+                throw new BizException(ResultCode.USER_ALREADY_EXISTS, "邮箱已被占用");
+            }
+        }
+    }
+
+    /**
+     * 校验实名/学院/年级/班级归属（原身份流程口径，保持不变）。
+     */
+    private void validateIdentity(String realname, Long collegeId, String grade, Long classId) {
         String trimmedRealname = StrUtil.trim(realname);
         if (StrUtil.isBlank(trimmedRealname)) {
             throw new BizException(ResultCode.BAD_REQUEST, "realname 不能为空");
@@ -270,17 +366,19 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
         if (gradeCount == null || gradeCount == 0) {
             throw new BizException(ResultCode.GRADE_NOT_FOUND, "该学院下不存在该年级");
         }
-        return trimmedRealname;
     }
 
-    private boolean identityMatchesUser(UserInfo user, ProfileIdentityVo original) {
-        if (original == null) {
-            return false;
+    private UserProfileChange requireLockedChange(Long id) {
+        if (id == null) {
+            throw new BizException(ResultCode.BAD_REQUEST, "id 不能为空");
         }
-        return Objects.equals(user.getRealname(), original.getRealname())
-                && Objects.equals(user.getCollegeId(), original.getCollegeId())
-                && Objects.equals(user.getGrade(), original.getGrade())
-                && Objects.equals(user.getClassId(), original.getClassId());
+        UserProfileChange change = userProfileChangeMapper.selectOne(
+                new LambdaQueryWrapper<UserProfileChange>().eq(UserProfileChange::getId, id).last("FOR UPDATE")
+        );
+        if (change == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "变更申请不存在");
+        }
+        return change;
     }
 
     private String normalizeReviewReason(String reason) {
@@ -305,22 +403,22 @@ public class ProfileChangeServiceImpl implements ProfileChangeService {
         return new PageVo<>(list, result.getTotal());
     }
 
-    private String writeJson(ProfileIdentityVo identity) {
+    private String writeJson(ProfileSnapshotVo snapshot) {
         try {
-            return objectMapper.writeValueAsString(identity);
+            return objectMapper.writeValueAsString(snapshot);
         } catch (Exception e) {
-            throw new BizException(ResultCode.INTERNAL_ERROR, "身份资料序列化失败");
+            throw new BizException(ResultCode.INTERNAL_ERROR, "资料快照序列化失败");
         }
     }
 
-    private ProfileIdentityVo readJson(String json) {
+    private ProfileSnapshotVo readJson(String json) {
         if (!StringUtils.hasText(json)) {
             return null;
         }
         try {
-            return objectMapper.readValue(json, ProfileIdentityVo.class);
+            return objectMapper.readValue(json, ProfileSnapshotVo.class);
         } catch (Exception e) {
-            throw new BizException(ResultCode.INTERNAL_ERROR, "身份资料解析失败");
+            throw new BizException(ResultCode.INTERNAL_ERROR, "资料快照解析失败");
         }
     }
 

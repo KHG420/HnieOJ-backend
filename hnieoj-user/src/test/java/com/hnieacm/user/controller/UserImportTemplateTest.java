@@ -73,7 +73,7 @@ class UserImportTemplateTest {
                 .thenReturn(new CreateUserVo("20220001", "HnieOJ@123456"));
         UserImportServiceImpl userImportService = new UserImportServiceImpl(userManageService);
 
-        ResponseEntity<byte[]> response = new UserManageController(null, userImportService, null, null, null)
+        ResponseEntity<byte[]> response = new UserManageController(null, userImportService, null, null)
                 .downloadImportTemplate();
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);

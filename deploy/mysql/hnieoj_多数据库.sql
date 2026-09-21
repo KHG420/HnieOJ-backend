@@ -102,33 +102,12 @@ CREATE TABLE `user_register_apply` (
   UNIQUE KEY `uk_register_apply_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户注册审核表';
 
--- 用户资料修改申请表
+-- 用户资料修改申请表（user_profile_change_apply）已随两套「资料变更」流程合并而退役：
+-- 资料变更统一由 user_profile_change（按申请 id 审批、original/proposed 全量快照、逐字段原值一致性校验）受理，
+-- 另一张表与对应接口、服务、前端调用一并移除（BE-03.6 / W5）。
+-- 这里保留显式的 DROP：本脚本对已存在的库是「重跑」而不是「重建」，只删掉 CREATE 语句会让
+-- 上一版建出的表以孤儿形式留在库里；对全新安装该语句是无害的空操作。
 DROP TABLE IF EXISTS `user_profile_change_apply`;
-CREATE TABLE `user_profile_change_apply` (
-  `id` bigint(20) NOT NULL AUTO_INCREMENT,
-  `uid` varchar(50) NOT NULL COMMENT '申请用户UID',
-  `username` varchar(50) DEFAULT NULL COMMENT '申请用户名',
-  `email` varchar(255) DEFAULT NULL COMMENT '申请邮箱',
-  `phone` varchar(20) DEFAULT NULL COMMENT '申请手机号',
-  `avatar` varchar(255) DEFAULT NULL COMMENT '申请头像URL',
-  `college_id` bigint(20) DEFAULT NULL COMMENT '申请学院ID',
-  `class_id` bigint(20) DEFAULT NULL COMMENT '申请班级ID',
-  `grade` varchar(20) DEFAULT NULL COMMENT '申请年级',
-  `realname` varchar(50) DEFAULT NULL COMMENT '申请真实姓名',
-  `qq` varchar(20) DEFAULT NULL COMMENT '申请QQ号',
-  `cf_username` varchar(100) DEFAULT NULL COMMENT '申请Codeforces账号',
-  `github` varchar(255) DEFAULT NULL COMMENT '申请GitHub链接',
-  `blog` varchar(255) DEFAULT NULL COMMENT '申请博客链接',
-  `status` varchar(20) NOT NULL DEFAULT 'pending' COMMENT 'pending/approved/rejected',
-  `reason` varchar(255) DEFAULT NULL COMMENT '驳回原因',
-  `reviewer_uid` varchar(50) DEFAULT NULL COMMENT '审核人UID',
-  `review_time` datetime DEFAULT NULL COMMENT '审核时间',
-  `gmt_create` datetime DEFAULT CURRENT_TIMESTAMP,
-  `gmt_modified` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_uid_status` (`uid`, `status`),
-  KEY `idx_status_create` (`status`, `gmt_create`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户资料修改申请表';
 
 -- 角色表
 DROP TABLE IF EXISTS `role`;

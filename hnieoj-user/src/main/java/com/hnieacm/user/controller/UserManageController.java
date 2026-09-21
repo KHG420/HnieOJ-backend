@@ -6,7 +6,6 @@ import com.hnieacm.common.dto.PageVo;
 import com.hnieacm.common.result.Result;
 import com.hnieacm.user.dto.BatchUidsRequest;
 import com.hnieacm.user.dto.CreateUserRequest;
-import com.hnieacm.user.dto.RejectUserProfileChangeRequest;
 import com.hnieacm.user.dto.TransferUserSubmissionsRequest;
 import com.hnieacm.user.dto.UpdateUserIpRestrictionRequest;
 import com.hnieacm.user.dto.UpdateUserPasswordRequest;
@@ -14,13 +13,11 @@ import com.hnieacm.user.dto.UpdateUserRequest;
 import com.hnieacm.user.service.UserIpRestrictionService;
 import com.hnieacm.user.service.UserImportService;
 import com.hnieacm.user.service.UserManageService;
-import com.hnieacm.user.service.UserProfileChangeService;
 import com.hnieacm.user.service.UserSubmissionTransferService;
 import com.hnieacm.user.vo.BatchOperationResultVo;
 import com.hnieacm.user.vo.CreateUserVo;
 import com.hnieacm.user.vo.TransferUserSubmissionsVo;
 import com.hnieacm.user.vo.UserImportResultVo;
-import com.hnieacm.user.vo.UserProfileChangeApplyVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -63,7 +60,6 @@ public class UserManageController {
     private final UserImportService userImportService;
     private final UserIpRestrictionService userIpRestrictionService;
     private final UserSubmissionTransferService userSubmissionTransferService;
-    private final UserProfileChangeService userProfileChangeService;
 
     @Operation(summary = "下载用户导入模板")
     @GetMapping("/import/template")
@@ -144,35 +140,5 @@ public class UserManageController {
         return Result.success("转移成功", userSubmissionTransferService.transfer(sourceUid, request));
     }
 
-    @Operation(summary = "查询用户信息修改申请")
-    @GetMapping("/changes")
-    public Result<PageVo<UserProfileChangeApplyVo>> listProfileChanges(
-            @RequestParam(required = false, defaultValue = "1") @Min(value = 1, message = "page 必须>=1") int page,
-            @RequestParam(required = false, defaultValue = "20") @Min(value = 1, message = "pageSize 必须>=1") int pageSize,
-            @RequestParam(required = false) String uid,
-            @RequestParam(required = false) String status) {
-        return Result.success(userProfileChangeService.listForAdmin(page, pageSize, uid, status));
-    }
-
-    @Operation(summary = "通过用户信息修改申请")
-    @PutMapping("/{uid}/changes/approve")
-    public Result<Void> approveProfileChange(@PathVariable String uid) {
-        userProfileChangeService.approve(uid);
-        return Result.success("操作成功", null);
-    }
-
-    @Operation(summary = "驳回用户信息修改申请")
-    @PutMapping("/{uid}/changes/reject")
-    public Result<Void> rejectProfileChange(@PathVariable String uid,
-                                            @Valid @RequestBody RejectUserProfileChangeRequest request) {
-        userProfileChangeService.reject(uid, request.getReason());
-        return Result.success("操作成功", null);
-    }
-
-    @Operation(summary = "批量通过用户信息修改申请")
-    @PutMapping("/changes/batch-approve")
-    public Result<BatchOperationResultVo> batchApproveProfileChanges(@Valid @RequestBody BatchUidsRequest request) {
-        return Result.success("操作成功", userProfileChangeService.batchApprove(request));
-    }
 }
 

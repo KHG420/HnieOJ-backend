@@ -8,8 +8,10 @@ import cn.dev33.satoken.stp.StpInterface;
 import cn.dev33.satoken.stp.StpUtil;
 import com.hnieacm.common.constant.RoleConstant;
 import com.hnieacm.common.dto.PageVo;
+import com.hnieacm.user.dto.BatchIdsRequest;
 import com.hnieacm.user.dto.ProfileChangeReviewRequest;
 import com.hnieacm.user.service.ProfileChangeService;
+import com.hnieacm.user.vo.BatchOperationResultVo;
 import com.hnieacm.user.vo.ProfileChangeVo;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -85,6 +87,8 @@ class AdminProfileChangeControllerAuthTest {
             assertThatThrownBy(() -> controller.approve(1L, null)).isInstanceOf(NotLoginException.class);
             assertThatThrownBy(() -> controller.reject(1L, new ProfileChangeReviewRequest()))
                     .isInstanceOf(NotLoginException.class);
+            assertThatThrownBy(() -> controller.batchApprove(new BatchIdsRequest()))
+                    .isInstanceOf(NotLoginException.class);
         });
         verifyNoInteractions(profileChangeService);
     }
@@ -97,6 +101,8 @@ class AdminProfileChangeControllerAuthTest {
                     .isInstanceOf(NotRoleException.class);
             assertThatThrownBy(() -> controller.approve(1L, null)).isInstanceOf(NotRoleException.class);
             assertThatThrownBy(() -> controller.reject(1L, new ProfileChangeReviewRequest()))
+                    .isInstanceOf(NotRoleException.class);
+            assertThatThrownBy(() -> controller.batchApprove(new BatchIdsRequest()))
                     .isInstanceOf(NotRoleException.class);
         });
         verifyNoInteractions(profileChangeService);
@@ -126,6 +132,20 @@ class AdminProfileChangeControllerAuthTest {
         });
 
         verify(profileChangeService).reject(8L, "材料不足", "root");
+    }
+
+    @Test
+    void adminCanBatchApproveWithSessionReviewerUid() {
+        BatchIdsRequest request = new BatchIdsRequest();
+        request.setIds(List.of(1L, 2L));
+        when(profileChangeService.batchApprove(request, "admin")).thenReturn(new BatchOperationResultVo());
+
+        SaTokenContextMockUtil.setMockContext(() -> {
+            StpUtil.login("admin");
+            assertThat(controller.batchApprove(request).getCode()).isEqualTo(200);
+        });
+
+        verify(profileChangeService).batchApprove(request, "admin");
     }
 
     @Test

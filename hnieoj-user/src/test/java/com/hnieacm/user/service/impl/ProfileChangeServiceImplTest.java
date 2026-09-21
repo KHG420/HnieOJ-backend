@@ -16,6 +16,7 @@ import com.hnieacm.user.mapper.SysCollegeMapper;
 import com.hnieacm.user.mapper.UserInfoMapper;
 import com.hnieacm.user.mapper.UserProfileChangeMapper;
 import com.hnieacm.user.service.support.UserAuthStateService;
+import com.hnieacm.user.service.support.UserManageValidator;
 import com.hnieacm.user.support.MyBatisPlusTestSupport;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,6 +73,9 @@ class ProfileChangeServiceImplTest {
     @Mock
     private UserAuthStateService userAuthStateService;
 
+    @Mock
+    private UserManageValidator userManageValidator;
+
     private ProfileChangeServiceImpl service;
 
     @BeforeAll
@@ -84,7 +88,7 @@ class ProfileChangeServiceImplTest {
     void setUp() {
         service = new ProfileChangeServiceImpl(
                 userProfileChangeMapper, userInfoMapper, sysCollegeMapper, sysClassMapper,
-                userAuthStateService, new ObjectMapper());
+                userAuthStateService, userManageValidator, new ObjectMapper());
     }
 
     @Test

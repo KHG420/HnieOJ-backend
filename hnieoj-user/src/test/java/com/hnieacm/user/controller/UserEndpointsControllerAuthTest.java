@@ -10,7 +10,6 @@ import com.hnieacm.user.dto.UpdateUserProfileRequest;
 import com.hnieacm.user.service.ProfileChangeService;
 import com.hnieacm.user.service.UserManageService;
 import com.hnieacm.user.service.UserMessageService;
-import com.hnieacm.user.service.UserProfileChangeService;
 import com.hnieacm.user.service.UserProfileService;
 import com.hnieacm.user.vo.ProfileChangeVo;
 import com.hnieacm.user.vo.UserMessageVo;
@@ -53,8 +52,7 @@ class UserEndpointsControllerAuthTest {
         userProfileService = mock(UserProfileService.class);
         userMessageController = new UserMessageController(userMessageService);
         profileChangeController = new ProfileChangeController(profileChangeService);
-        userProfileController = new UserProfileController(userProfileService, mock(UserManageService.class),
-                mock(UserProfileChangeService.class));
+        userProfileController = new UserProfileController(userProfileService, mock(UserManageService.class));
     }
 
     @AfterEach

@@ -4,8 +4,10 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.hnieacm.common.constant.RoleConstant;
 import com.hnieacm.common.dto.PageVo;
 import com.hnieacm.common.result.Result;
+import com.hnieacm.user.dto.BatchIdsRequest;
 import com.hnieacm.user.dto.ProfileChangeReviewRequest;
 import com.hnieacm.user.service.ProfileChangeService;
+import com.hnieacm.user.vo.BatchOperationResultVo;
 import com.hnieacm.user.vo.ProfileChangeVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -60,6 +62,14 @@ public class AdminProfileChangeController {
         String reviewer = StpUtil.getLoginIdAsString();
         profileChangeService.approve(id, request == null ? null : request.getReason(), reviewer);
         return Result.success("审核通过", null);
+    }
+
+    @Operation(summary = "批量审核通过")
+    @PostMapping("/batch-approve")
+    public Result<BatchOperationResultVo> batchApprove(@Valid @RequestBody BatchIdsRequest request) {
+        StpUtil.checkRoleOr(RoleConstant.ADMIN, RoleConstant.ROOT);
+        String reviewer = StpUtil.getLoginIdAsString();
+        return Result.success("操作完成", profileChangeService.batchApprove(request, reviewer));
     }
 
     @Operation(summary = "审核驳回")

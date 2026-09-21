@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/09/20
- * @Description: 身份资料变更申请展示对象
+ * @Description: 资料变更申请展示对象（身份 + 联系/社交字段的完整快照）
  */
 @Data
 public class ProfileChangeVo {
@@ -16,9 +16,9 @@ public class ProfileChangeVo {
 
     private String uid;
 
-    private ProfileIdentityVo original;
+    private ProfileSnapshotVo original;
 
-    private ProfileIdentityVo proposed;
+    private ProfileSnapshotVo proposed;
 
     private String reason;
 

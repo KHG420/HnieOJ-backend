@@ -7,13 +7,10 @@ import com.hnieacm.common.result.Result;
 import com.hnieacm.user.dto.ChangeCurrentPasswordRequest;
 import com.hnieacm.user.dto.UpdatePasswordRequest;
 import com.hnieacm.user.dto.UpdateUserProfileRequest;
-import com.hnieacm.user.dto.UserProfileChangeApplyRequest;
 import com.hnieacm.user.service.UserManageService;
-import com.hnieacm.user.service.UserProfileChangeService;
 import com.hnieacm.user.service.UserProfileService;
 import com.hnieacm.user.vo.UserDetailVo;
 import com.hnieacm.user.vo.UserListVo;
-import com.hnieacm.user.vo.UserProfileChangeApplyVo;
 import com.hnieacm.user.vo.UserProfileVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,6 +31,9 @@ import org.springframework.web.bind.annotation.RestController;
  * @Author: HaoRan_Lyu
  * @Date: 2026/02/14
  * @Description: 用户配置文件和用户查询 API（需要登录）
+ * <p>资料变更申请已合并为唯一流程（BE-03.6 / W5），原 {@code /profile/change-requests}
+ * 两个端点随 user_profile_change_apply 流程一并退役，统一走
+ * {@code /api/user/profile-change-requests}（{@link ProfileChangeController}）。</p>
  */
 @Tag(name = "User Profile")
 @Validated
@@ -44,7 +44,6 @@ public class UserProfileController {
 
     private final UserProfileService userProfileService;
     private final UserManageService userManageService;
-    private final UserProfileChangeService userProfileChangeService;
 
     @Operation(summary = "Get current user profile")
     @SaCheckLogin
@@ -79,22 +78,6 @@ public class UserProfileController {
     public Result<Void> updateCurrentUserPassword(@jakarta.validation.Valid @RequestBody ChangeCurrentPasswordRequest request) {
         userProfileService.changeCurrentPassword(request);
         return Result.success("密码修改成功", null);
-    }
-
-    @Operation(summary = "提交当前用户信息修改申请")
-    @SaCheckLogin
-    @PostMapping("/profile/change-requests")
-    public Result<UserProfileChangeApplyVo> submitProfileChange(@Valid @RequestBody UserProfileChangeApplyRequest request) {
-        return Result.success("申请提交成功", userProfileChangeService.submit(StpUtil.getLoginIdAsString(), request));
-    }
-
-    @Operation(summary = "查询当前用户信息修改申请")
-    @SaCheckLogin
-    @GetMapping("/profile/change-requests")
-    public Result<PageVo<UserProfileChangeApplyVo>> listMyProfileChanges(
-            @RequestParam(required = false, defaultValue = "1") @Min(value = 1, message = "page must be >= 1") int page,
-            @RequestParam(required = false, defaultValue = "20") @Min(value = 1, message = "pageSize must be >= 1") int pageSize) {
-        return Result.success(userProfileChangeService.listMine(StpUtil.getLoginIdAsString(), page, pageSize));
     }
 
     @Operation(summary = "获取用户列表（分页）")
