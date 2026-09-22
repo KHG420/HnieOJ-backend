@@ -209,17 +209,13 @@
 - `/api/tags` GET 需登录，登录用户（含学生）可读。
 - 匿名访问管理 CRUD 返回 401；学生/低权限管理员返回 403。
 
-## 7. 数据库迁移
+## 7. 数据库 schema
 
-增量脚本：`deploy/mysql/upgrade/20260920_remaining_b1.sql`；说明见 `deploy/mysql/upgrade/20260920_remaining_b1.md`。
+本批 schema 已包含在完整初始化脚本 `deploy/mysql/hnieoj_多数据库.sql` 中；安装与重建执行该脚本，执行会重建表。
 
-- `hnieoj_system_db.announcement` 新增 `category varchar(20) NOT NULL DEFAULT 'ANNOUNCEMENT'`。
-- `hnieoj_judge_db.remote_judge_account` 新增唯一索引 `uk_oj_username (oj, username)`；加索引前检测历史重复，存在重复则明确中止且不删除数据。
-- `hnieoj_problem_db.problem_tag` 新增索引 `idx_tid (tid)`。
-- 脚本可重复执行，不含破坏性 DDL；存量旧库顺序为 `20260919_redis_gateway.sql` → `20260919_secure_node.sql` → B1 → B2；全新安装（fresh）只需执行完整初始化脚本 `hnieoj_多数据库.sql`（已内含 20260919 两步与 B1/B2 全部 schema），无需再执行任何增量脚本。
-- 历史 `(oj, username)` 重复预检在任何本批 DDL 之前执行；MySQL 8 预处理语句不支持 `SIGNAL`（ERROR 1295），
-  脚本用临时存储过程 `b1_precheck_remote_judge_account_duplicates` 承载条件 `SIGNAL SQLSTATE '45000'`，
-  预检通过后立即删除，失败残留下次重跑会先清理，不引入永久迁移框架。
+- `hnieoj_system_db.announcement` 含 `category varchar(20) NOT NULL DEFAULT 'ANNOUNCEMENT'`。
+- `hnieoj_judge_db.remote_judge_account` 含唯一索引 `uk_oj_username (oj, username)`。
+- `hnieoj_problem_db.problem_tag` 含索引 `idx_tid (tid)`。
 
 ---
 
@@ -228,7 +224,7 @@
 - 本批接口全部位于 `hnieoj-user`，统一返回 `Result<T>`：`{"code":200,"msg":"success","data":...}`。
 - 分页统一 `page>=1`、`1<=pageSize<=100`，返回 `PageVo<T>`：`{"list":[...],"total":N}`。
 - 鉴权：网关对 `/api/admin/**` 要求 ADMIN/ROOT；各 MVC 服务由 `common` 的 `SaTokenMvcAutoConfiguration` 统一注册 `SaInterceptor`（`/**`，排除 `/internal/**`），方法上的 `@SaCheckLogin` / `@SaCheckRole` / `@SaCheckPermission` 在服务内生效；本批接口另保留显式登录态/角色校验，形成双层防护。
-- 本批新增表见 `deploy/mysql/upgrade/20260920_remaining_b2.sql`；无破坏性 DDL，可重复执行。
+- 本批新增的 `user_notice` / `user_message` / `user_profile_change` 三表已包含在完整初始化脚本 `deploy/mysql/hnieoj_多数据库.sql` 中。
 
 ## B2-1 管理通知（ADMIN/ROOT）
 
@@ -595,10 +591,9 @@
 
 `/api/user/**` 沿现有路由保持不变。两条新管理路由继续受既有 `/api/admin/**` ADMIN/ROOT 规则约束；服务端控制器再显式校验一次。
 
-## B2-7 数据库迁移
+## B2-7 数据库 schema
 
-- 增量脚本：`deploy/mysql/upgrade/20260920_remaining_b2.sql`；说明见 `deploy/mysql/upgrade/20260920_remaining_b2.md`。存量旧库顺序为 `20260919_redis_gateway.sql` → `20260919_secure_node.sql` → `20260920_remaining_b1.sql` → `20260920_remaining_b2.sql`；全新安装（fresh）用本仓库当前完整初始化脚本 `hnieoj_多数据库.sql`（已内含 B1/B2 全部表结构）完成初始化即可，无需再执行任何增量脚本。
-- 仅新增 `hnieoj_user_db.user_notice`、`hnieoj_user_db.user_message`、`hnieoj_user_db.user_profile_change` 三张表，`CREATE TABLE IF NOT EXISTS` 可重复执行。
+- 本批 schema 已包含在完整初始化脚本 `deploy/mysql/hnieoj_多数据库.sql` 中；安装与重建执行该脚本，执行会重建表。
+- `hnieoj_user_db.user_notice`、`hnieoj_user_db.user_message`、`hnieoj_user_db.user_profile_change` 三张表随完整脚本统一创建。
 - `user_message` 唯一键 `uk_notice_recipient (notice_id, recipient_uid)` 保证发布幂等；`idx_recipient_created`/`idx_recipient_read` 服务收件箱与未读数查询。
-- 无 `DROP`/`UPDATE`/历史数据覆盖；“同一用户仅一条待审申请”由业务层用户行锁保证，不依赖唯一 pending 索引。
-- 回滚说明见迁移 md，回滚仅可删除这三张新增表，绝不能删除 `user_info` 等历史表。
+- “同一用户仅一条待审申请”由业务层用户行锁保证，不依赖唯一 pending 索引。

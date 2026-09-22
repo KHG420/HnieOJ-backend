@@ -205,9 +205,7 @@ problem 服务原样透传原始 method/path/body 摘要给 submission，由 sub
 
 ### 迁移与回滚边界
 
-- 已有数据库在维护窗口内先备份，再按顺序执行增量迁移：
-  `deploy/mysql/upgrade/20260919_redis_gateway.sql` → `deploy/mysql/upgrade/20260919_secure_node.sql`；
-  顺序不可颠倒，fresh 安装使用完整初始化脚本且结果一致。
+- 数据库安装/重建执行完整初始化脚本 `deploy/mysql/hnieoj_多数据库.sql`（内含节点身份 v1 全部库表结构），执行会重建表。
 - 迁移后确认所有后端副本使用一致的 `HNIEOJ_JUDGE_NODE_ACCESS_TOKEN_SECRET` 与
   `HNIEOJ_JUDGE_NODE_AUDIENCE`，并建议 Redis 开启 AOF、`maxmemory-policy noeviction`。
 - 回滚需先确认没有节点已切换到 v1 认证；v1 新表/新列保留，不做破坏性回滚。
