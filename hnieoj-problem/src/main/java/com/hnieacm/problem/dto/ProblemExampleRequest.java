@@ -6,7 +6,7 @@ import lombok.Data;
 /**
  * @Author: HaoRan_Lyu
  * @Date: 2026/02/21
- * @Description: 题目样例请求项
+ * @Description: 题目样例请求项，输入/输出字段名为 input/output。
  */
 @Data
 public class ProblemExampleRequest {

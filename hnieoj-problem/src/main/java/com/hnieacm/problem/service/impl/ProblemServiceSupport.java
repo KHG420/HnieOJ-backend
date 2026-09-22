@@ -1,10 +1,13 @@
 package com.hnieacm.problem.service.impl;
 
+import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.hnieacm.common.constant.PermissionConstant;
 import com.hnieacm.common.exception.BizException;
 import com.hnieacm.common.result.ResultCode;
+import com.hnieacm.problem.constant.ProblemAuthConstant;
 import com.hnieacm.problem.entity.Problem;
 import com.hnieacm.problem.entity.ProblemTag;
 import com.hnieacm.problem.entity.Tag;
@@ -68,6 +71,25 @@ public final class ProblemServiceSupport {
             throw new BizException(ResultCode.PROBLEM_NOT_FOUND, "题目不存在");
         }
         return problem;
+    }
+
+    /**
+     * @MethodName requireAccessible
+     * @Param problem
+     * @Description 按既有详情可见性规则校验题目：非公开题目仅拥有 problem:update 权限者可见
+     * @Return
+     * @Author HaoRan_Lyu
+     * @Date 2026/09/20
+     */
+    public static void requireAccessible(Problem problem) {
+        if (problem == null) {
+            throw new BizException(ResultCode.PROBLEM_NOT_FOUND, "题目不存在");
+        }
+        if (problem.getAuth() == null || problem.getAuth() != ProblemAuthConstant.PUBLIC) {
+            if (!StpUtil.hasPermission(PermissionConstant.PROBLEM_UPDATE)) {
+                throw new BizException(ResultCode.FORBIDDEN, "该题目当前不可访问");
+            }
+        }
     }
 
     /**
@@ -192,13 +214,12 @@ public final class ProblemServiceSupport {
         }
 
         List<String> names = normalizeTagNames(tags);
+        // 锁协议：TagServiceImpl.deleteTag 与 ProblemTagConfigServiceImpl.deleteRemovedUnusedTags
+        // 都先对 tag 行加 FOR UPDATE 再做 problem_tag 引用检查。此处必须同样先经 ensureTags 锁 tag 行，
+        // 再删除/重建 problem_tag 关联，否则与上述路径形成 tag ↔ problem_tag 的 ABBA 死锁。
+        Map<String, Long> nameToId = names.isEmpty() ? Collections.emptyMap() : ensureTags(tagMapper, names);
         problemTagMapper.delete(new LambdaQueryWrapper<ProblemTag>().eq(ProblemTag::getProblemId, problemId));
-        if (names.isEmpty()) {
-            return;
-        }
-
-        Map<String, Long> nameToId = ensureTags(tagMapper, names);
-        if (nameToId.isEmpty()) {
+        if (names.isEmpty() || nameToId.isEmpty()) {
             return;
         }
 
@@ -244,7 +265,12 @@ public final class ProblemServiceSupport {
      * @Date 2026/02/21
      */
     private static Map<String, Long> ensureTags(TagMapper tagMapper, List<String> names) {
-        List<Tag> existed = tagMapper.selectList(new LambdaQueryWrapper<Tag>().in(Tag::getName, names));
+        // 锁协议：TagServiceImpl.deleteTag 与 ProblemTagConfigServiceImpl.deleteRemovedUnusedTags
+        // 都先对本行加 FOR UPDATE 再做 problem_tag 引用检查（且用当前读），本方法同样先锁 tag 行再建关联。
+        // 三条路径统一「先锁 tag 行、后读写 problem_tag」，因此删除与建关联不会交错产生悬挂引用。
+        List<Tag> existed = tagMapper.selectList(
+                new LambdaQueryWrapper<Tag>().in(Tag::getName, names).last("FOR UPDATE")
+        );
         Map<String, Long> nameToId = existed == null ? new HashMap<>() : existed.stream()
                 .filter(t -> StrUtil.isNotBlank(t.getName()) && t.getId() != null)
                 .collect(Collectors.toMap(Tag::getName, Tag::getId, (a, b) -> a, HashMap::new));
@@ -257,8 +283,23 @@ public final class ProblemServiceSupport {
             t.setName(name);
             try {
                 tagMapper.insert(t);
-            } catch (DuplicateKeyException ignored) {
-                // 忽略并发场景中的重复写入
+                nameToId.put(name, t.getId());
+            } catch (DuplicateKeyException e) {
+                // 并发事务已插入同名标签：REPEATABLE READ 下普通 SELECT 可能沿用旧快照看不到新行，
+                // 必须用当前读取回。此处只能用 S 兼容的 FOR SHARE：INSERT 命中唯一键时本事务已持有
+                // 该行的 S 锁，若改用 FOR UPDATE 升级为 X，会与同样持有 S 的并发事务互相等待而死锁。
+                Tag concurrent = tagMapper.selectOne(
+                        new LambdaQueryWrapper<Tag>().eq(Tag::getName, name).last("FOR SHARE"));
+                if (concurrent != null && concurrent.getId() != null) {
+                    nameToId.put(concurrent.getName(), concurrent.getId());
+                    continue;
+                }
+                try {
+                    tagMapper.insert(t);
+                    nameToId.put(name, t.getId());
+                } catch (DuplicateKeyException retryFailure) {
+                    throw new BizException(ResultCode.INTERNAL_ERROR, "标签写入并发冲突，请重试：" + name);
+                }
             }
         }
 

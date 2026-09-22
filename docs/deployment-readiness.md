@@ -28,7 +28,7 @@ mysql -uroot -p < deploy/mysql/hnieoj_多数据库.sql
 mysql -uroot -p < deploy/mysql/添加测试数据.sql
 ```
 
-清库重建使用完整初始化脚本；已有数据库升级必须按顺序执行增量迁移脚本（见第 9 节），不要用完整脚本覆盖存量库。
+安装与重建统一执行完整初始化脚本 `deploy/mysql/hnieoj_多数据库.sql`；执行会重建表，请确认目标库。
 
 ## 3. Nacos
 
@@ -205,29 +205,14 @@ bash deploy/scripts/deploy-dev.sh gojudge-down
 节点身份 v1 引入 Ed25519 注册、短期 NODE_ACCESS 令牌与 WSS 节点通道。以下边界为本地或预发
 验证所需，不构成生产 DNS/证书/防火墙或数据迁移验收结论；本仓库未在生产环境执行或验证。
 
-### 9.1 数据库增量迁移（维护窗口 + 先备份）
-
-已有数据库按以下顺序执行增量脚本，每一步前先做全量备份，并在维护窗口内操作：
-
-```bash
-mysqldump -uroot -p --single-transaction <db> > backup_before_node_v1.sql
-mysql -uroot -p < deploy/mysql/upgrade/20260919_redis_gateway.sql
-mysql -uroot -p < deploy/mysql/upgrade/20260919_secure_node.sql
-```
-
-- 顺序固定为先 `20260919_redis_gateway.sql`，再 `20260919_secure_node.sql`，不可颠倒。
-- fresh 安装使用完整初始化脚本 `deploy/mysql/hnieoj_多数据库.sql`，其结果与按序执行这两个增量脚本后一致；
-  已有库不得用完整脚本覆盖。
-- 迁移后确认 outbox / execution 表结构与节点身份相关列/索引齐全，再启动新版本后端。
-
-### 9.2 Redis 持久化与恢复
+### 9.1 Redis 持久化与恢复
 
 - 判题任务以固定 Stream key + MySQL 权威租约为准，Redis 只是传递与 PEL 载体。
 - 建议 Redis 开启 AOF（`appendonly yes`）并设置 `maxmemory-policy noeviction`，避免在途判题任务被内存回收静默驱逐；使用外部托管 Redis 时请在控制台确认等效策略。
 - 恢复：Redis 重启/丢数据后，后端恢复扫描会依据 MySQL 中滞留 `queued` 与过期租约重新补偿派发；
   不要手工删除 PEL 中在途条目，先核对 `hnieoj.judge.stream.*` 配置与消费组再观察补偿结果。
 
-### 9.3 节点重新注册（维护窗口）
+### 9.2 节点重新注册（维护窗口）
 
 - 存量节点需在维护窗口内通过管理员一次性 Bootstrap 按 v1 协议重新注册（详见 `docs/judge-ops.md`）；
   不要在未确认切换前并行保留旧 bearer-only 通路。
@@ -236,7 +221,7 @@ mysql -uroot -p < deploy/mysql/upgrade/20260919_secure_node.sql
   不得写入普通 Nacos 配置。
 - 密钥缺失、非正 TTL、越界帧大小等非法配置启动即失败（fail-fast）。
 
-### 9.4 通道与回滚边界
+### 9.3 通道与回滚边界
 
 - WebSocket：`/ws/judge/node` 需经 TLS 终结（入口终止 TLS），普通文本回环仅限本地测试；
   服务自身提供认证截止（默认 10s）、64KiB 控制帧 / 4MiB 任务帧上限、时间戳偏差与有界串行写出。

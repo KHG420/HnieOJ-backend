@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
+import lombok.ToString;
 
 import java.time.LocalDateTime;
 
@@ -23,6 +24,7 @@ public class RemoteJudgeAccount {
 
     private String username;
 
+    @ToString.Exclude
     private String password;
 
     private Integer status;

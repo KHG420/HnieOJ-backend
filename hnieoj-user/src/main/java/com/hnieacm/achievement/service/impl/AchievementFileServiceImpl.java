@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -28,6 +29,10 @@ import java.util.UUID;
 public class AchievementFileServiceImpl implements AchievementFileService {
 
     private static final long MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024;
+
+    private static final String HTTP_PREFIX = "http://";
+
+    private static final String HTTPS_PREFIX = "https://";
 
     private final AchievementFileProperties achievementFileProperties;
 
@@ -80,6 +85,67 @@ public class AchievementFileServiceImpl implements AchievementFileService {
             return prefix + key;
         }
         return prefix + "/" + key;
+    }
+
+    /**
+     * @MethodName loadLocal
+     * @Param storedValue
+     * @Description 读取本地附件：剥离当前配置的 publicUrlPrefix 后仅接受相对 key，拒绝外部 URL 与任何路径穿越，规范化后必须位于 upload-dir 内
+     * @Return @return {@link LocalFile }
+     * @Author HaoRan_Lyu
+     * @Date 2026/09/20
+     */
+    @Override
+    public LocalFile loadLocal(String storedValue) {
+        String key = StrUtil.trimToNull(storedValue);
+        if (key == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "附件不存在");
+        }
+        String lowerKey = key.toLowerCase(Locale.ROOT);
+        if (lowerKey.startsWith(HTTP_PREFIX) || lowerKey.startsWith(HTTPS_PREFIX)) {
+            // 外部 URL 由前端直接打开，服务端不做任意地址代理下载
+            throw new BizException(ResultCode.BAD_REQUEST, "外部附件地址无需服务端下载");
+        }
+        key = stripConfiguredPrefix(key);
+        if (key == null) {
+            throw new BizException(ResultCode.BAD_REQUEST, "附件路径不合法");
+        }
+        if (key.contains("/") || key.contains("\\") || key.contains("..")) {
+            throw new BizException(ResultCode.BAD_REQUEST, "附件路径不合法");
+        }
+
+        Path uploadRoot = Path.of(resolveUploadDir()).toAbsolutePath().normalize();
+        Path target = uploadRoot.resolve(key).normalize();
+        if (!target.startsWith(uploadRoot) || !Files.isRegularFile(target)) {
+            throw new BizException(ResultCode.NOT_FOUND, "附件不存在");
+        }
+        try {
+            return new LocalFile(Files.readAllBytes(target), target.getFileName().toString());
+        } catch (IOException e) {
+            log.error("Load achievement file failed, key: {}", key, e);
+            throw new BizException(ResultCode.INTERNAL_ERROR, "读取附件失败");
+        }
+    }
+
+    /**
+     * 剥离当前配置的 publicUrlPrefix，把申请记录中的存储值还原为裸 key。
+     *
+     * <p>只按当前配置的完整前缀边界做精确匹配：未配置、配置为空白或前缀不匹配时原样返回，
+     * 交由调用方按裸 key 规则继续校验；不做 basename 截取与路径解码。</p>
+     *
+     * @param storedValue 申请记录中的存储值
+     * @return 剥离前缀后的裸 key；剥离结果为空时返回 {@code null}
+     */
+    private String stripConfiguredPrefix(String storedValue) {
+        String prefix = StrUtil.trimToNull(achievementFileProperties.getPublicUrlPrefix());
+        if (prefix == null) {
+            return storedValue;
+        }
+        String joinedPrefix = prefix.endsWith("/") ? prefix : prefix + "/";
+        if (!storedValue.startsWith(joinedPrefix)) {
+            return storedValue;
+        }
+        return StrUtil.trimToNull(storedValue.substring(joinedPrefix.length()));
     }
 
     /**

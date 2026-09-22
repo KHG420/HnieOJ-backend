@@ -89,4 +89,23 @@ public class UserAuthStateService {
             log.debug("Delete auth cache ignored, uid: {}, msg: {}", uid, e.getMessage());
         }
     }
+
+    /**
+     * 事务内登记 afterCommit 回调，仅提交成功后执行；无事务时立即执行。
+     *
+     * @param action 提交后要执行的动作（如失效会话、清理鉴权缓存）
+     */
+    public void afterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+            return;
+        }
+        action.run();
+    }
 }

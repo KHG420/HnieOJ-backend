@@ -14,7 +14,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @SpringBootApplication(scanBasePackages = "com.hnieacm")
 @EnableDiscoveryClient
-@EnableFeignClients(basePackages = "com.hnieacm.submission.feign")
+@EnableFeignClients(basePackages = {"com.hnieacm.submission.feign", "com.hnieacm.common.feign"})
 @MapperScan({"com.hnieacm.submission.mapper", "com.hnieacm.judge.mapper"})
 @EnableScheduling
 public class SubmissionApplication {

@@ -1,0 +1,2 @@
+com.hnieacm.common.config.SaTokenMvcAutoConfiguration
+com.hnieacm.common.config.AuthCacheStpInterfaceAutoConfiguration

@@ -17,12 +17,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,7 +55,9 @@ class ProblemTagConfigServiceImplTest {
                 tag(1L, "math", "基础"),
                 tag(2L, "dp", "算法")
         ));
-        when(problemTagMapper.selectCount(org.mockito.ArgumentMatchers.<Wrapper<ProblemTag>>any())).thenReturn(0L);
+        // deleteRemovedUnusedTags 先按 id 锁定 tag 行（FOR UPDATE），返回被删的 dp
+        when(tagMapper.selectOne(any())).thenReturn(tag(2L, "dp", "算法"));
+        when(problemTagMapper.selectList(any())).thenReturn(List.of());
 
         service.save(request(group("算法", List.of("math", "graph"))));
 
@@ -66,14 +70,62 @@ class ProblemTagConfigServiceImplTest {
     }
 
     @Test
+    void shouldTreatConcurrentSameNameInsertAsExisting() {
+        ProblemTagConfigServiceImpl service = new ProblemTagConfigServiceImpl(tagMapper, problemTagMapper);
+        when(tagMapper.selectList(any())).thenReturn(List.of());
+        Tag concurrent = tag(9L, "graph", "算法");
+        when(tagMapper.insert(any(Tag.class))).thenThrow(new DuplicateKeyException("uk_name"));
+        when(tagMapper.selectOne(any())).thenReturn(concurrent);
+
+        // 并发保存同一份新标签：唯一键冲突必须被消化为「已存在」，不能抛成系统异常
+        service.save(request(group("算法", List.of("graph"))));
+
+        verify(tagMapper).selectOne(any());
+        // 并发创建时以先写入者的分类为准，不再争抢该行写锁
+        verify(tagMapper, never()).update(any(), any());
+    }
+
+    @Test
+    void shouldFailWithBusinessErrorWhenConcurrentRowIsGone() {
+        ProblemTagConfigServiceImpl service = new ProblemTagConfigServiceImpl(tagMapper, problemTagMapper);
+        when(tagMapper.selectList(any())).thenReturn(List.of());
+        when(tagMapper.insert(any(Tag.class))).thenThrow(new DuplicateKeyException("uk_name"));
+        when(tagMapper.selectOne(any())).thenReturn(null);
+
+        // 读不到说明对方已回滚：交回业务错误让调用方重试，绝不静默丢弃
+        assertThatThrownBy(() -> service.save(request(group("算法", List.of("graph")))))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("标签写入并发冲突");
+    }
+
+    @Test
     void shouldRejectRemovingUsedTag() {
         ProblemTagConfigServiceImpl service = new ProblemTagConfigServiceImpl(tagMapper, problemTagMapper);
         when(tagMapper.selectList(any())).thenReturn(List.of(tag(1L, "dp", "算法")));
-        when(problemTagMapper.selectCount(org.mockito.ArgumentMatchers.<Wrapper<ProblemTag>>any())).thenReturn(1L);
+        // deleteRemovedUnusedTags 先按 id 锁定 tag 行（FOR UPDATE），返回被删的 dp
+        when(tagMapper.selectOne(any())).thenReturn(tag(1L, "dp", "算法"));
+        when(problemTagMapper.selectList(any())).thenReturn(List.of(new ProblemTag()));
 
         assertThatThrownBy(() -> service.save(request(group("算法", List.of("graph")))))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("标签已被题目使用");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldCheckTagReferencesWithLockingReadWhenDeleting() {
+        ProblemTagConfigServiceImpl service = new ProblemTagConfigServiceImpl(tagMapper, problemTagMapper);
+        when(tagMapper.selectList(any())).thenReturn(List.of(tag(1L, "dp", "算法")));
+        when(tagMapper.selectOne(any())).thenReturn(tag(1L, "dp", "算法"));
+        when(problemTagMapper.selectList(any())).thenReturn(List.of());
+
+        service.save(request(group("算法", List.of("graph"))));
+
+        // save() 开头的普通 SELECT 已建立 REPEATABLE READ 快照，引用检查必须用当前读（FOR UPDATE）
+        // 才能看到并发事务刚提交的关联，否则会删掉仍被引用的标签。
+        ArgumentCaptor<Wrapper<ProblemTag>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(problemTagMapper).selectList(wrapperCaptor.capture());
+        assertThat(wrapperCaptor.getValue().getSqlSegment()).containsIgnoringCase("FOR UPDATE");
     }
 
     private SaveTagConfigRequest request(TagGroupRequest... groups) {
