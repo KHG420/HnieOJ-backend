@@ -214,13 +214,12 @@ public final class ProblemServiceSupport {
         }
 
         List<String> names = normalizeTagNames(tags);
+        // 锁协议：TagServiceImpl.deleteTag 与 ProblemTagConfigServiceImpl.deleteRemovedUnusedTags
+        // 都先对 tag 行加 FOR UPDATE 再做 problem_tag 引用检查。此处必须同样先经 ensureTags 锁 tag 行，
+        // 再删除/重建 problem_tag 关联，否则与上述路径形成 tag ↔ problem_tag 的 ABBA 死锁。
+        Map<String, Long> nameToId = names.isEmpty() ? Collections.emptyMap() : ensureTags(tagMapper, names);
         problemTagMapper.delete(new LambdaQueryWrapper<ProblemTag>().eq(ProblemTag::getProblemId, problemId));
-        if (names.isEmpty()) {
-            return;
-        }
-
-        Map<String, Long> nameToId = ensureTags(tagMapper, names);
-        if (nameToId.isEmpty()) {
+        if (names.isEmpty() || nameToId.isEmpty()) {
             return;
         }
 

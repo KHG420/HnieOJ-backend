@@ -34,7 +34,7 @@ class BaseDataControllerAuthTest {
 
     @Test
     void classByIdBatchQueryRequiresLogin() {
-        // W6 新增的按 id 批量反查供管理端编辑页使用，不应扩大匿名可见面
+        // 按 id 批量反查供管理端编辑页使用，不应扩大匿名可见面
         assertThat(loginCheckOn("listClassesByIds")).isTrue();
     }
 

@@ -102,11 +102,8 @@ CREATE TABLE `user_register_apply` (
   UNIQUE KEY `uk_register_apply_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户注册审核表';
 
--- 用户资料修改申请表（user_profile_change_apply）已随两套「资料变更」流程合并而退役：
--- 资料变更统一由 user_profile_change（按申请 id 审批、original/proposed 全量快照、逐字段原值一致性校验）受理，
--- 另一张表与对应接口、服务、前端调用一并移除（BE-03.6 / W5）。
--- 这里保留显式的 DROP：本脚本对已存在的库是「重跑」而不是「重建」，只删掉 CREATE 语句会让
--- 上一版建出的表以孤儿形式留在库里；对全新安装该语句是无害的空操作。
+-- 本脚本是首版完整 schema，执行会 DROP TABLE 后重建。
+-- 资料变更使用 user_profile_change。
 DROP TABLE IF EXISTS `user_profile_change_apply`;
 
 -- 角色表
