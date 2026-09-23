@@ -56,6 +56,7 @@ class ContestQueryServiceImplListContestsTest {
         service = new ContestQueryServiceImpl(
                 contestMapper,
                 mock(ContestProblemMapper.class),
+                mock(com.hnieacm.contest.mapper.ContestRegisterMapper.class),
                 new ObjectMapper());
     }
 

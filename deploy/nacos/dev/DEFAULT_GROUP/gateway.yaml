@@ -33,7 +33,7 @@ spring:
           uri: lb://hnieoj-user
           predicates:
             # 用户服务路由 + 学院班级路由 + 定向通知/身份资料变更审核路由
-            - Path=/api/user/**,/api/users/**,/api/colleges/**,/api/classes/**,/api/admin/permission/**,/api/admin/users/**,/api/admin/notices,/api/admin/notices/**,/api/admin/profile-change-requests,/api/admin/profile-change-requests/**
+            - Path=/api/user/**,/api/users/**,/api/colleges/**,/api/classes/**,/api/admin/permission/**,/api/admin/users/**,/api/admin/notices,/api/admin/notices/**,/api/admin/profile-change-requests,/api/admin/profile-change-requests/**,/api/admin/invite-codes,/api/admin/invite-codes/**,/api/admin/favorites/**
         - id: hnieoj-problem
           uri: lb://hnieoj-problem
           predicates:

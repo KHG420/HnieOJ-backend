@@ -6,8 +6,10 @@ import com.hnieacm.common.constant.RoleConstant;
 import com.hnieacm.common.dto.PageVo;
 import com.hnieacm.common.result.Result;
 import com.hnieacm.training.service.HomeworkQueryService;
+import com.hnieacm.training.service.HomeworkRankService;
 import com.hnieacm.training.vo.HomeworkDetailVo;
 import com.hnieacm.training.vo.HomeworkListVo;
+import com.hnieacm.training.vo.HomeworkRankVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Min;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.List;
 
 /**
  * @Author: HaoRan_Lyu
@@ -42,14 +45,23 @@ import org.springframework.web.bind.annotation.RestController;
 public class HomeworkController {
 
     private final HomeworkQueryService homeworkQueryService;
+    private final HomeworkRankService homeworkRankService;
+
+    @Operation(summary = "作业成绩单")
+    @GetMapping("/{id}/rankings")
+    public Result<List<HomeworkRankVo>> rankings(@PathVariable("id") @Min(1) Long homeworkId) {
+        return Result.success(homeworkRankService.standings(homeworkId));
+    }
 
     @Operation(summary = "获取作业列表")
     @GetMapping
     public Result<PageVo<HomeworkListVo>> list(
             @RequestParam @Min(value = 1, message = "page 必须大于等于 1") int page,
             @RequestParam @Min(value = 1, message = "pageSize 必须大于等于 1") int pageSize,
-            @RequestParam(required = false) String keyword) {
-        return Result.success(homeworkQueryService.listHomeworks(page, pageSize, keyword));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) List<Long> classIds) {
+        return Result.success(homeworkQueryService.listHomeworks(page, pageSize, keyword, classId, classIds));
     }
 
     @Operation(summary = "获取作业详情")

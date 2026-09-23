@@ -30,6 +30,15 @@ mysql -uroot -p < deploy/mysql/添加测试数据.sql
 
 安装与重建统一执行完整初始化脚本 `deploy/mysql/hnieoj_多数据库.sql`；执行会重建表，请确认目标库。
 
+已有数据库升级到当前 `dev` 时，不要重跑会删表的初始化脚本。先备份数据库，再分别执行增量迁移：
+
+```bash
+mysql -uroot -p hnieoj_user_db < deploy/mysql/migrations/20260923_invite_code.sql
+mysql -uroot -p hnieoj_user_db < deploy/mysql/migrations/20260923_user_favorite.sql
+```
+
+邀请码和收藏接口依赖这两张新表；后端部署脚本不会自动执行数据库迁移。
+
 ## 3. Nacos
 
 导入这些配置：

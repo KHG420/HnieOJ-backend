@@ -12,6 +12,8 @@ import com.hnieacm.training.vo.HomeworkListVo;
 public interface HomeworkQueryService {
 
     PageVo<HomeworkListVo> listHomeworks(int page, int pageSize, String keyword);
+    PageVo<HomeworkListVo> listHomeworks(int page, int pageSize, String keyword, Long classId);
+    PageVo<HomeworkListVo> listHomeworks(int page, int pageSize, String keyword, Long classId, java.util.List<Long> classIds);
 
     HomeworkDetailVo getHomeworkDetail(Long homeworkId);
 }
