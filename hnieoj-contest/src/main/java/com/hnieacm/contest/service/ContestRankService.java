@@ -27,6 +27,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * @author HnieOJ contributors
+ */
 @Service
 @RequiredArgsConstructor
 public class ContestRankService {
@@ -40,7 +43,7 @@ public class ContestRankService {
         List<Contest> finished = contestMapper.selectList(new LambdaQueryWrapper<Contest>()
                 .eq(Contest::getIsVisible, 1).eq(Contest::getOpenRank, 1)
                 .le(Contest::getEndTime, now).orderByAsc(Contest::getEndTime).orderByAsc(Contest::getId));
-        Map<String, ContestRatingVo> ratings = new HashMap<>();
+        Map<String, ContestRatingVo> ratings = new HashMap<>(16);
         for (Contest contest : finished) {
             Set<Long> problemIds = contestProblemMapper.selectList(new LambdaQueryWrapper<ContestProblem>()
                     .eq(ContestProblem::getCid, contest.getId())).stream()
@@ -69,7 +72,9 @@ public class ContestRankService {
         rows.sort(Comparator.comparingInt(ContestRatingVo::getRating).reversed()
                 .thenComparing(Comparator.comparingInt(ContestRatingVo::getContests).reversed())
                 .thenComparing(ContestRatingVo::getUid));
-        for (int i = 0; i < rows.size(); i++) rows.get(i).setRank(i + 1);
+        for (int i = 0; i < rows.size(); i++) {
+            rows.get(i).setRank(i + 1);
+        }
         return rows;
     }
 
@@ -100,7 +105,7 @@ public class ContestRankService {
 
     static List<ContestRankVo> calculate(Contest contest, Set<Long> problemIds,
                                          List<ScoreSubmissionVo> submissions, LocalDateTime cutoff) {
-        Map<String, Participant> participants = new HashMap<>();
+        Map<String, Participant> participants = new HashMap<>(16);
         for (ScoreSubmissionVo submission : submissions) {
             LocalDateTime submittedAt = submission.getGmtCreate();
             if (submission.getUid() == null || submittedAt == null || submittedAt.isBefore(contest.getStartTime())
@@ -138,7 +143,9 @@ public class ContestRankService {
             for (Map.Entry<Long, ProblemResult> entry : participant.problems.entrySet()) {
                 ProblemResult result = entry.getValue();
                 scores.put(entry.getKey(), result.score);
-                if (result.score == 100) row.setSolved(row.getSolved() + 1);
+                if (result.score == 100) {
+                    row.setSolved(row.getSolved() + 1);
+                }
                 row.setTotalScore(row.getTotalScore() + result.score);
                 row.setPenaltyMinutes(row.getPenaltyMinutes() + result.penaltyMinutes);
             }

@@ -4,7 +4,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/** Minimal judged submission data used to calculate contest and homework standings. */
+/** Minimal judged submission data used to calculate contest and homework standings.
+ * @author HnieOJ contributors
+ */
 @Data
 public class ScoreSubmissionVo {
     private Long problemId;

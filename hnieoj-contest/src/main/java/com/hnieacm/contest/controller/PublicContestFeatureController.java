@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 
+/**
+ * @author HnieOJ contributors
+ */
 @RestController
 @RequestMapping("/api/contests/featured")
 @RequiredArgsConstructor
@@ -34,7 +37,9 @@ public class PublicContestFeatureController {
                     .gt(Contest::getStartTime, now).orderByAsc(Contest::getStartTime).last("limit 1"));
             status = "upcoming";
         }
-        if (contest == null) return Result.success(null);
+        if (contest == null) {
+            return Result.success(null);
+        }
         FeaturedContestVo result = new FeaturedContestVo();
         result.setId(contest.getId());
         result.setTitle(contest.getTitle());

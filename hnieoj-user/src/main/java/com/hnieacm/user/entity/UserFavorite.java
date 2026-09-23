@@ -7,6 +7,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * @author HnieOJ contributors
+ */
 @Data
 @TableName("user_favorite")
 public class UserFavorite {

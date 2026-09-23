@@ -5,6 +5,9 @@ import lombok.Data;
 import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * @author HnieOJ contributors
+ */
 @Data
 public class AdminSubmissionDashboardVo {
     private long totalSubmissions;

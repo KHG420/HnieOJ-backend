@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * @author HnieOJ contributors
+ */
 @Data
 public class FeaturedContestVo {
     private Long id;

@@ -23,6 +23,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * @author HnieOJ contributors
+ */
 @Service
 @RequiredArgsConstructor
 public class HomeworkRankService {
@@ -46,18 +49,20 @@ public class HomeworkRankService {
     }
 
     static List<HomeworkRankVo> calculate(Homework homework, Set<Long> problemIds, List<ScoreSubmissionVo> submissions) {
-        Map<String, Map<Long, Integer>> scores = new HashMap<>();
-        Map<String, String> names = new HashMap<>();
+        Map<String, Map<Long, Integer>> scores = new HashMap<>(16);
+        Map<String, String> names = new HashMap<>(16);
         for (ScoreSubmissionVo submission : submissions) {
             LocalDateTime time = submission.getGmtCreate();
             if (submission.getUid() == null || time == null || submission.getStatus() == null
                     || submission.getStatus() < 0 || submission.getStatus() >= 6
                     || !problemIds.contains(submission.getProblemId())
-                    || time.isBefore(homework.getStartTime()) || time.isAfter(homework.getEndTime())) continue;
+                    || time.isBefore(homework.getStartTime()) || time.isAfter(homework.getEndTime())) {
+                continue;
+            }
             names.put(submission.getUid(), submission.getUsername());
             int score = submission.getStatus() == 0 ? 100
                     : Math.min(100, Math.max(0, submission.getScore() == null ? 0 : submission.getScore()));
-            scores.computeIfAbsent(submission.getUid(), ignored -> new HashMap<>())
+            scores.computeIfAbsent(submission.getUid(), ignored -> new HashMap<>(16))
                     .merge(submission.getProblemId(), score, Math::max);
         }
         List<HomeworkRankVo> rows = new ArrayList<>();
@@ -72,7 +77,9 @@ public class HomeworkRankService {
         rows.sort(Comparator.comparingInt(HomeworkRankVo::getTotalScore).reversed()
                 .thenComparing(Comparator.comparingInt(HomeworkRankVo::getSolved).reversed())
                 .thenComparing(HomeworkRankVo::getUid));
-        for (int i = 0; i < rows.size(); i++) rows.get(i).setRank(i + 1);
+        for (int i = 0; i < rows.size(); i++) {
+            rows.get(i).setRank(i + 1);
+        }
         return rows;
     }
 }

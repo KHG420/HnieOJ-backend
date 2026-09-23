@@ -63,14 +63,18 @@ public class HomeworkQueryServiceImpl implements HomeworkQueryService {
                 .orderByDesc(Homework::getId);
         if (classId != null || classIds != null) {
             List<Long> selected = classId != null ? List.of(classId) : classIds;
-            if (selected == null || selected.isEmpty() || selected.size() > 1000
-                    || selected.stream().anyMatch(id -> id == null || id <= 0)) {
+            if (selected.isEmpty() || selected.size() > 1000) {
+                throw new BizException(ResultCode.BAD_REQUEST, "classIds 不合法");
+            }
+            if (selected.stream().anyMatch(id -> id == null || id <= 0)) {
                 throw new BizException(ResultCode.BAD_REQUEST, "classIds 不合法");
             }
             List<Long> ids = homeworkClassMapper.selectList(new LambdaQueryWrapper<HomeworkClass>()
                     .in(HomeworkClass::getClassId, selected)).stream()
                     .map(HomeworkClass::getHid).distinct().toList();
-            if (ids.isEmpty()) return new PageVo<>(List.of(), 0L);
+            if (ids.isEmpty()) {
+                return new PageVo<>(List.of(), 0L);
+            }
             wrapper.in(Homework::getId, ids);
         }
         if (normalizedKeyword != null) {

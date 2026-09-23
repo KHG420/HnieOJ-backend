@@ -20,6 +20,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 
+/**
+ * @author HnieOJ contributors
+ */
 @RestController
 @RequestMapping("/internal/homeworks")
 @RequiredArgsConstructor

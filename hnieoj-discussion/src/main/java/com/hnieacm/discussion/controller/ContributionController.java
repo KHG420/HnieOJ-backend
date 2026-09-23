@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * @author HnieOJ contributors
+ */
 @RestController
 @SaCheckLogin
 @RequestMapping("/api/discussions/contributions")
@@ -22,7 +25,9 @@ public class ContributionController {
     @GetMapping
     public Result<List<ContributionRankVo>> list() {
         List<ContributionRankVo> rows = discussionMapper.listContributions();
-        for (int i = 0; i < rows.size(); i++) rows.get(i).setRank(i + 1);
+        for (int i = 0; i < rows.size(); i++) {
+            rows.get(i).setRank(i + 1);
+        }
         return Result.success(rows);
     }
 

@@ -8,8 +8,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
+/**
+ * @author HnieOJ contributors
+ */
 @FeignClient(name = "hnieoj-submission", contextId = "scoreSubmissionFeignClient")
 public interface ScoreSubmissionFeignClient {
+    /**
+     * List submissions used to calculate standings.
+     * @param scope contest or homework
+     * @param id contest or homework identifier
+     * @return judged submissions
+     */
     @GetMapping("/internal/submissions/scores")
     Result<List<ScoreSubmissionVo>> listScores(@RequestParam("scope") String scope,
                                                @RequestParam("id") Long id);

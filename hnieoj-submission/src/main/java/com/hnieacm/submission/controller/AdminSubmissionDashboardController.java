@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 
+/**
+ * @author HnieOJ contributors
+ */
 @RestController
 @SaCheckLogin
 @RequestMapping("/api/admin/submissions/dashboard")

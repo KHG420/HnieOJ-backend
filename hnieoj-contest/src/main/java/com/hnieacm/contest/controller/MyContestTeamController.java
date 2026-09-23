@@ -19,6 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * @author HnieOJ contributors
+ */
 @RestController
 @SaCheckLogin
 @RequestMapping("/api/contests/teams")
@@ -35,9 +38,13 @@ public class MyContestTeamController {
         List<MyContestTeamVo> rows = new ArrayList<>();
         for (ContestTeamMember membership : memberships) {
             ContestTeam team = teamMapper.selectById(membership.getTeamId());
-            if (team == null) continue;
+            if (team == null) {
+                continue;
+            }
             Contest contest = contestMapper.selectById(team.getCid());
-            if (contest == null || !Integer.valueOf(1).equals(contest.getIsVisible())) continue;
+            if (contest == null || !Integer.valueOf(1).equals(contest.getIsVisible())) {
+                continue;
+            }
             MyContestTeamVo row = new MyContestTeamVo();
             row.setTeamId(team.getId());
             row.setTeamName(team.getName());

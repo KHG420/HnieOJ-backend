@@ -106,7 +106,9 @@ public class ContestQueryServiceImpl implements ContestQueryService {
                     .eq(ContestRegister::getUid, participantUid.trim())
                     .eq(ContestRegister::getStatus, 1)).stream()
                     .map(ContestRegister::getCid).distinct().toList();
-            if (registeredIds.isEmpty()) return new PageVo<>(List.of(), 0L);
+            if (registeredIds.isEmpty()) {
+                return new PageVo<>(List.of(), 0L);
+            }
             wrapper.in(Contest::getId, registeredIds);
         }
 

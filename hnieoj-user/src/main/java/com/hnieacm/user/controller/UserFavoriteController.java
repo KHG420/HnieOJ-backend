@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * @author HnieOJ contributors
+ */
 @RestController
 @SaCheckLogin
 @RequestMapping("/api/user/favorites")
@@ -26,11 +29,15 @@ public class UserFavoriteController {
 
     @GetMapping
     public Result<List<UserFavorite>> list(@RequestParam(required = false) String type) {
-        if (type != null) validate(type, "1");
+        if (type != null) {
+            validate(type, "1");
+        }
         LambdaQueryWrapper<UserFavorite> query = new LambdaQueryWrapper<UserFavorite>()
                 .eq(UserFavorite::getUid, StpUtil.getLoginIdAsString())
                 .orderByDesc(UserFavorite::getId);
-        if (type != null) query.eq(UserFavorite::getTargetType, type);
+        if (type != null) {
+            query.eq(UserFavorite::getTargetType, type);
+        }
         return Result.success(mapper.selectList(query));
     }
 
@@ -42,10 +49,14 @@ public class UserFavoriteController {
 
     @PostMapping
     public Result<Void> add(@RequestBody FavoriteRequest request) {
-        if (request == null) throw new BizException(ResultCode.BAD_REQUEST, "收藏参数不能为空");
+        if (request == null) {
+            throw new BizException(ResultCode.BAD_REQUEST, "收藏参数不能为空");
+        }
         validate(request.type, request.targetId);
         String uid = StpUtil.getLoginIdAsString();
-        if (exists(uid, request.type, request.targetId)) return Result.success(null);
+        if (exists(uid, request.type, request.targetId)) {
+            return Result.success(null);
+        }
         UserFavorite favorite = new UserFavorite();
         favorite.setUid(uid);
         favorite.setTargetType(request.type);

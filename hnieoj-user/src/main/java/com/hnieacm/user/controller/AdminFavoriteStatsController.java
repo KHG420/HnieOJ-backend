@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * @author HnieOJ contributors
+ */
 @RestController
 @RequestMapping("/api/admin/favorites")
 @RequiredArgsConstructor

@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * @author HnieOJ contributors
+ */
 @RestController
 @SaCheckLogin
 @RequestMapping("/api/submissions/rankings")
@@ -24,11 +27,17 @@ public class SubmissionRankController {
     public Result<List<UserSolveRankVo>> list(@RequestParam(defaultValue = "all") String period) {
         var monthStart = LocalDate.now().withDayOfMonth(1).atStartOfDay();
         List<UserSolveRankVo> rows;
-        if ("month".equals(period)) rows = judgeMapper.listMonthlySolveRanks(monthStart);
-        else if ("all".equals(period)) rows = judgeMapper.listSolveRanks(monthStart);
-        else throw new com.hnieacm.common.exception.BizException(com.hnieacm.common.result.ResultCode.BAD_REQUEST,
-                "period 不合法");
-        for (int i = 0; i < rows.size(); i++) rows.get(i).setRank(i + 1);
+        if ("month".equals(period)) {
+            rows = judgeMapper.listMonthlySolveRanks(monthStart);
+        } else if ("all".equals(period)) {
+            rows = judgeMapper.listSolveRanks(monthStart);
+        } else {
+            throw new com.hnieacm.common.exception.BizException(com.hnieacm.common.result.ResultCode.BAD_REQUEST,
+                    "period 不合法");
+        }
+        for (int i = 0; i < rows.size(); i++) {
+            rows.get(i).setRank(i + 1);
+        }
         return Result.success(rows);
     }
 }

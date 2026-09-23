@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * @author HnieOJ contributors
+ */
 @RestController
 @RequestMapping("/internal/submissions/scores")
 @RequiredArgsConstructor

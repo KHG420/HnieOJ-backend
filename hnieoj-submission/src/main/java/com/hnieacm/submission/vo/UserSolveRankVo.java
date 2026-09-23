@@ -2,6 +2,9 @@ package com.hnieacm.submission.vo;
 
 import lombok.Data;
 
+/**
+ * @author HnieOJ contributors
+ */
 @Data
 public class UserSolveRankVo {
     private int rank;

@@ -99,27 +99,7 @@ public class SubmissionServiceImpl implements SubmissionService {
             throw new BizException(ResultCode.BAD_REQUEST, "language不能为空");
         }
 
-        String code = StrUtil.trimToNull(request.getCode());
-        if (code != null) {
-            validateCodeSize(code);
-        }
-        if (StrUtil.isBlank(code) && (file == null || file.isEmpty())) {
-            throw new BizException(ResultCode.BAD_REQUEST, "code和file不能同时为空");
-        }
-
-        if (StrUtil.isBlank(code) && file != null && !file.isEmpty()) {
-            validateCodeFileSize(file);
-            try {
-                code = new String(file.getBytes(), StandardCharsets.UTF_8);
-            } catch (Exception e) {
-                throw new BizException(ResultCode.BAD_REQUEST, "读取代码文件失败");
-            }
-            code = StrUtil.trimToNull(code);
-            if (StrUtil.isBlank(code)) {
-                throw new BizException(ResultCode.BAD_REQUEST, "代码文件内容不能为空");
-            }
-            validateCodeSize(code);
-        }
+        String code = readSubmittedCode(request, file);
 
         String uid = StpUtil.getLoginIdAsString();
 
@@ -167,6 +147,30 @@ public class SubmissionServiceImpl implements SubmissionService {
         log.info("Submission created, submitId={}, problemCode={}, uid={}, language={}", submitId, problemCode, uid, language);
 
         return new SubmitCodeVo(submitId);
+    }
+
+    private String readSubmittedCode(SubmitCodeRequest request, MultipartFile file) {
+        String code = StrUtil.trimToNull(request.getCode());
+        if (code != null) {
+            validateCodeSize(code);
+        }
+        if (StrUtil.isBlank(code) && (file == null || file.isEmpty())) {
+            throw new BizException(ResultCode.BAD_REQUEST, "code和file不能同时为空");
+        }
+        if (StrUtil.isBlank(code) && file != null && !file.isEmpty()) {
+            validateCodeFileSize(file);
+            try {
+                code = new String(file.getBytes(), StandardCharsets.UTF_8);
+            } catch (Exception e) {
+                throw new BizException(ResultCode.BAD_REQUEST, "读取代码文件失败");
+            }
+            code = StrUtil.trimToNull(code);
+            if (StrUtil.isBlank(code)) {
+                throw new BizException(ResultCode.BAD_REQUEST, "代码文件内容不能为空");
+            }
+            validateCodeSize(code);
+        }
+        return code;
     }
 
     /**
@@ -786,10 +790,14 @@ public class SubmissionServiceImpl implements SubmissionService {
 
     private long parseHomeworkId(String homeworkId) {
         String normalized = StrUtil.trimToNull(homeworkId);
-        if (normalized == null) return SubmissionConstant.DEFAULT_HID;
+        if (normalized == null) {
+            return SubmissionConstant.DEFAULT_HID;
+        }
         try {
             long id = Long.parseLong(normalized);
-            if (id > 0) return id;
+            if (id > 0) {
+                return id;
+            }
         } catch (NumberFormatException ignored) {
             // invalid ID below
         }

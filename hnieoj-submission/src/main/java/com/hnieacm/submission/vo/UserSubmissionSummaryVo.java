@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * @author HnieOJ contributors
+ */
 @Data
 public class UserSubmissionSummaryVo {
     private int totalSubmissions;

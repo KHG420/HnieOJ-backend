@@ -13,6 +13,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
+/**
+ * @author HnieOJ contributors
+ */
 @Service
 @RequiredArgsConstructor
 public class ContestRegistrationService {
@@ -33,7 +36,9 @@ public class ContestRegistrationService {
         if (!LocalDateTime.now().isBefore(contest.getEndTime())) {
             throw new BizException(ResultCode.FORBIDDEN, "比赛已结束，不能报名");
         }
-        if (isRegistered(contestId, uid)) return;
+        if (isRegistered(contestId, uid)) {
+            return;
+        }
         if (contest.getAuth() != null && contest.getAuth() == ContestAuthConstant.PRIVATE) {
             throw new BizException(ResultCode.FORBIDDEN, "邀请制比赛由管理员添加参赛账号");
         }

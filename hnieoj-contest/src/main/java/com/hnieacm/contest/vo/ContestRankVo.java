@@ -4,6 +4,9 @@ import lombok.Data;
 
 import java.util.Map;
 
+/**
+ * @author HnieOJ contributors
+ */
 @Data
 public class ContestRankVo {
     private int rank;
