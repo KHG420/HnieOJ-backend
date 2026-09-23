@@ -22,4 +22,13 @@ public interface ScoreSubmissionFeignClient {
     @GetMapping("/internal/submissions/scores")
     Result<List<ScoreSubmissionVo>> listScores(@RequestParam("scope") String scope,
                                                @RequestParam("id") Long id);
+
+    /**
+     * Get per-user, per-problem scores already aggregated by the submission database.
+     * @param query homework window and problem scope
+     * @return best scores
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/internal/submissions/scores/homework-best")
+    Result<List<com.hnieacm.common.dto.HomeworkBestScoreVo>> listHomeworkBestScores(
+            @org.springframework.web.bind.annotation.RequestBody com.hnieacm.common.dto.HomeworkScoreQuery query);
 }

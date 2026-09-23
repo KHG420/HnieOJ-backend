@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.hnieacm.common.exception.BizException;
 import com.hnieacm.common.result.ResultCode;
 import com.hnieacm.contest.constant.ContestAuthConstant;
+import com.hnieacm.contest.constant.ContestRegisterTypeConstant;
 import com.hnieacm.contest.entity.Contest;
 import com.hnieacm.contest.entity.ContestRegister;
 import com.hnieacm.contest.mapper.ContestMapper;
@@ -47,7 +48,7 @@ public class ContestRegistrationService {
         registration.setCid(contestId);
         registration.setUid(uid);
         registration.setStatus(1);
-        registration.setType("user");
+        registration.setType(ContestRegisterTypeConstant.USER);
         try {
             registerMapper.insert(registration);
         } catch (DuplicateKeyException ignored) {

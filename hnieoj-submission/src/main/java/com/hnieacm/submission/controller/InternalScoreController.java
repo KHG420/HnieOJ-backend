@@ -12,6 +12,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import com.hnieacm.common.dto.HomeworkBestScoreVo;
+import com.hnieacm.common.dto.HomeworkScoreQuery;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 /**
  * @author HnieOJ contributors
@@ -34,5 +38,25 @@ public class InternalScoreController {
             return Result.success(judgeMapper.listHomeworkScores(id));
         }
         throw new BizException(ResultCode.BAD_REQUEST, "scope 不合法");
+    }
+
+    @PostMapping("/homework-best")
+    public Result<List<HomeworkBestScoreVo>> homeworkBest(@RequestBody HomeworkScoreQuery query) {
+        if (query == null || query.homeworkId() == null || query.homeworkId() <= 0) {
+            throw new BizException(ResultCode.BAD_REQUEST, "作业成绩查询参数不合法");
+        }
+        if (query.startTime() == null || query.endTime() == null
+                || !query.endTime().isAfter(query.startTime())) {
+            throw new BizException(ResultCode.BAD_REQUEST, "作业成绩查询参数不合法");
+        }
+        if (query.problemIds() == null || query.problemIds().isEmpty()) {
+            throw new BizException(ResultCode.BAD_REQUEST, "作业成绩查询参数不合法");
+        }
+        boolean invalidProblemIds = query.problemIds().stream().anyMatch(id -> id == null || id <= 0);
+        if (invalidProblemIds) {
+            throw new BizException(ResultCode.BAD_REQUEST, "作业成绩查询参数不合法");
+        }
+        return Result.success(judgeMapper.listHomeworkBestScores(query.homeworkId(), query.startTime(),
+                query.endTime(), query.problemIds()));
     }
 }

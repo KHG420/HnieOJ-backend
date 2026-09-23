@@ -6,7 +6,9 @@ import com.hnieacm.contest.entity.Contest;
 import com.hnieacm.contest.feign.ScoreSubmissionFeignClient;
 import com.hnieacm.contest.mapper.ContestMapper;
 import com.hnieacm.contest.mapper.ContestProblemMapper;
+import com.hnieacm.contest.mapper.ContestRegisterMapper;
 import com.hnieacm.contest.vo.ContestRankVo;
+import com.hnieacm.common.exception.BizException;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -14,6 +16,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -22,6 +25,24 @@ import static org.mockito.Mockito.when;
 
 class ContestRankServiceTest {
     private static final LocalDateTime START = LocalDateTime.of(2026, 9, 23, 10, 0);
+
+    @Test
+    void privateScoreboardRejectsUnregisteredViewer() {
+        ContestMapper contests = mock(ContestMapper.class);
+        ContestRegisterMapper registrations = mock(ContestRegisterMapper.class);
+        Contest privateContest = new Contest();
+        privateContest.setIsVisible(1);
+        privateContest.setOpenRank(1);
+        privateContest.setAuth(1);
+        privateContest.setStartTime(LocalDateTime.now().minusHours(1));
+        privateContest.setEndTime(LocalDateTime.now().plusHours(1));
+        when(contests.selectById(3L)).thenReturn(privateContest);
+        when(registrations.selectCount(any())).thenReturn(0L);
+        ContestRankService service = new ContestRankService(contests, mock(ContestProblemMapper.class),
+                mock(ScoreSubmissionFeignClient.class), registrations);
+
+        assertThrows(BizException.class, () -> service.standings(3L, "outsider", false));
+    }
 
     @Test
     void repeatedRatingRequestsReuseRecentCalculation() {
@@ -35,7 +56,7 @@ class ContestRankServiceTest {
         when(contests.selectList(any())).thenReturn(List.of(finished));
         when(problems.selectList(any())).thenReturn(List.of());
         when(submissions.listScores("contest", 1L)).thenReturn(Result.success(List.of()));
-        ContestRankService service = new ContestRankService(contests, problems, submissions);
+        ContestRankService service = new ContestRankService(contests, problems, submissions, mock(ContestRegisterMapper.class));
 
         service.ratings();
         service.ratings();

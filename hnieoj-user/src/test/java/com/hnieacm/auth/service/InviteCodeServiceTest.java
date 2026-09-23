@@ -15,6 +15,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import org.mockito.ArgumentCaptor;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /** A one-time code must be consumed by one successful conditional update. */
 class InviteCodeServiceTest {
@@ -32,6 +35,11 @@ class InviteCodeServiceTest {
         InviteCodeService service = new InviteCodeService(mapper);
 
         service.consume("sample-code", "first-user");
+
+        ArgumentCaptor<LambdaUpdateWrapper<InviteCode>> query = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
+        verify(mapper).update(isNull(), query.capture());
+        assertThat(query.getValue().getSqlSegment()).contains("status", "used_uid", "expires_at");
+        assertThat(query.getValue().getParamNameValuePairs()).containsValue(1);
 
         assertThatThrownBy(() -> service.consume("sample-code", "second-user"))
                 .isInstanceOf(BizException.class)

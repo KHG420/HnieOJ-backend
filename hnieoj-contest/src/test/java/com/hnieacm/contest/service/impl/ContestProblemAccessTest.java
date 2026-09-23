@@ -22,6 +22,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
+import org.mockito.ArgumentCaptor;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 /** Active contest access must include the problem and honor private rosters. */
@@ -52,6 +55,10 @@ class ContestProblemAccessTest {
         assertThatThrownBy(() -> fixture.service.checkProblemAccess(1L, 2L, "student"))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("参赛资格");
+        ArgumentCaptor<LambdaQueryWrapper<ContestRegister>> query = ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(fixture.registerMapper).selectCount(query.capture());
+        assertThat(query.getValue().getSqlSegment()).contains("status");
+        assertThat(query.getValue().getParamNameValuePairs()).containsValue(1);
     }
 
     @Test

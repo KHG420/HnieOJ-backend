@@ -8,6 +8,7 @@ import com.hnieacm.training.feign.HomeworkUserFeignClient;
 import com.hnieacm.training.mapper.HomeworkClassMapper;
 import com.hnieacm.training.mapper.HomeworkMapper;
 import com.hnieacm.training.mapper.HomeworkProblemMapper;
+import com.hnieacm.training.service.HomeworkClassAccessService;
 import com.hnieacm.training.vo.HomeworkUserVo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,8 +27,9 @@ class InternalHomeworkAccessControllerTest {
     private final HomeworkProblemMapper problems = mock(HomeworkProblemMapper.class);
     private final HomeworkClassMapper classes = mock(HomeworkClassMapper.class);
     private final HomeworkUserFeignClient users = mock(HomeworkUserFeignClient.class);
+    private final HomeworkClassAccessService classAccess = new HomeworkClassAccessService(classes, users);
     private final InternalHomeworkAccessController controller =
-            new InternalHomeworkAccessController(homeworks, problems, classes, users);
+            new InternalHomeworkAccessController(homeworks, problems, classAccess);
 
     @BeforeEach
     void setUp() {

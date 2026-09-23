@@ -30,7 +30,7 @@ public class UserFavoriteController {
     @GetMapping
     public Result<List<UserFavorite>> list(@RequestParam(required = false) String type) {
         if (type != null) {
-            validate(type, "1");
+            validateType(type);
         }
         LambdaQueryWrapper<UserFavorite> query = new LambdaQueryWrapper<UserFavorite>()
                 .eq(UserFavorite::getUid, StpUtil.getLoginIdAsString())
@@ -82,7 +82,14 @@ public class UserFavoriteController {
     }
 
     private void validate(String type, String targetId) {
-        if (type == null || !TYPES.contains(type) || targetId == null || targetId.isBlank() || targetId.length() > 64) {
+        validateType(type);
+        if (targetId == null || targetId.isBlank() || targetId.length() > 64) {
+            throw new BizException(ResultCode.BAD_REQUEST, "收藏参数不合法");
+        }
+    }
+
+    private void validateType(String type) {
+        if (type == null || !TYPES.contains(type)) {
             throw new BizException(ResultCode.BAD_REQUEST, "收藏参数不合法");
         }
     }

@@ -39,6 +39,24 @@ public interface JudgeMapper extends BaseMapper<Judge> {
     List<ScoreSubmissionVo> listHomeworkScores(@Param("id") Long id);
 
     /**
+     * Aggregate a homework's terminal submissions in its active window in SQL.
+     * @param id homework identifier
+     * @param start opening time
+     * @param end closing time
+     * @param problemIds assigned problem identifiers
+     * @return best score for each user and problem
+     */
+    @Select("<script>SELECT uid, MAX(username) AS username, problem_id AS problemId, "
+            + "MAX(CASE WHEN status = 0 THEN 100 ELSE LEAST(100, GREATEST(0, COALESCE(score, 0))) END) "
+            + "AS bestScore FROM judge WHERE hid = #{id} AND status BETWEEN 0 AND 5 "
+            + "AND gmt_create BETWEEN #{start} AND #{end} AND problem_id IN "
+            + "<foreach collection='problemIds' item='problemId' open='(' separator=',' close=')'>"
+            + "#{problemId}</foreach> GROUP BY uid, problem_id</script>")
+    List<com.hnieacm.common.dto.HomeworkBestScoreVo> listHomeworkBestScores(
+            @Param("id") Long id, @Param("start") java.time.LocalDateTime start,
+            @Param("end") java.time.LocalDateTime end, @Param("problemIds") List<Long> problemIds);
+
+    /**
      * List all-time problem solving ranks.
      * @param monthStart query monthStart
      * @return query results

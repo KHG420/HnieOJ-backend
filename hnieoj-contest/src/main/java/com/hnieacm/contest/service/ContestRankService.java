@@ -7,13 +7,17 @@ import com.hnieacm.contest.feign.ScoreSubmissionFeignClient;
 import com.hnieacm.common.result.Result;
 import com.hnieacm.common.result.ResultCode;
 import com.hnieacm.contest.constant.ContestTypeConstant;
+import com.hnieacm.contest.constant.ContestAuthConstant;
 import com.hnieacm.contest.entity.Contest;
+import com.hnieacm.contest.entity.ContestRegister;
 import com.hnieacm.contest.entity.ContestProblem;
 import com.hnieacm.contest.mapper.ContestMapper;
 import com.hnieacm.contest.mapper.ContestProblemMapper;
+import com.hnieacm.contest.mapper.ContestRegisterMapper;
 import com.hnieacm.contest.vo.ContestRankVo;
 import com.hnieacm.contest.vo.ContestRatingVo;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -32,11 +36,13 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ContestRankService {
     private static final long RATINGS_CACHE_NANOS = Duration.ofSeconds(10).toNanos();
     private final ContestMapper contestMapper;
     private final ContestProblemMapper contestProblemMapper;
     private final ScoreSubmissionFeignClient submissionClient;
+    private final ContestRegisterMapper contestRegisterMapper;
     private volatile RatingSnapshot ratingSnapshot;
 
     /** Ratings start at 1200; each finished contest moves 25% toward rank percentile performance (800–2000). */
@@ -66,9 +72,16 @@ public class ContestRankService {
             Set<Long> problemIds = contestProblemMapper.selectList(new LambdaQueryWrapper<ContestProblem>()
                     .eq(ContestProblem::getCid, contest.getId())).stream()
                     .map(ContestProblem::getProblemId).collect(Collectors.toSet());
-            Result<List<ScoreSubmissionVo>> response = submissionClient.listScores("contest", contest.getId());
+            Result<List<ScoreSubmissionVo>> response;
+            try {
+                response = submissionClient.listScores("contest", contest.getId());
+            } catch (RuntimeException exception) {
+                log.warn("Skipping unavailable contest scores for rating, contestId={}", contest.getId(), exception);
+                continue;
+            }
             if (response == null || response.getCode() != ResultCode.SUCCESS || response.getData() == null) {
-                throw new BizException(ResultCode.INTERNAL_ERROR, "比赛评分暂不可用");
+                log.warn("Skipping unavailable contest scores for rating, contestId={}", contest.getId());
+                continue;
             }
             List<ContestRankVo> standings = calculate(contest, problemIds, response.getData(), contest.getEndTime());
             int participants = standings.size();
@@ -98,13 +111,20 @@ public class ContestRankService {
 
     private record RatingSnapshot(List<ContestRatingVo> rows, long createdAtNanos) { }
 
-    public List<ContestRankVo> standings(long contestId) {
+    public List<ContestRankVo> standings(long contestId, String viewerUid, boolean manager) {
         Contest contest = contestMapper.selectById(contestId);
         if (contest == null || !Integer.valueOf(1).equals(contest.getIsVisible())) {
             throw new BizException(ResultCode.NOT_FOUND, "比赛不存在或不可见");
         }
         if (!Integer.valueOf(1).equals(contest.getOpenRank())) {
             throw new BizException(ResultCode.FORBIDDEN, "比赛未开放榜单");
+        }
+        if (Integer.valueOf(ContestAuthConstant.PRIVATE).equals(contest.getAuth()) && !manager
+                && contestRegisterMapper.selectCount(new LambdaQueryWrapper<ContestRegister>()
+                        .eq(ContestRegister::getCid, contestId)
+                        .eq(ContestRegister::getUid, viewerUid)
+                        .eq(ContestRegister::getStatus, 1)) == 0) {
+            throw new BizException(ResultCode.FORBIDDEN, "未获得该比赛的参赛资格");
         }
         LocalDateTime now = LocalDateTime.now();
         if (now.isBefore(contest.getStartTime())) {

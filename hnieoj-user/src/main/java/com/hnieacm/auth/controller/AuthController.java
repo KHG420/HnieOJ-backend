@@ -6,6 +6,7 @@ import com.hnieacm.auth.dto.RegisterRequest;
 import com.hnieacm.auth.service.AuthService;
 import com.hnieacm.common.result.Result;
 import com.hnieacm.common.result.ResultCode;
+import com.hnieacm.common.constant.RegisterModeConstant;
 import com.hnieacm.common.exception.BizException;
 import com.hnieacm.user.feign.SubmissionInternalFeignClient;
 import com.hnieacm.user.vo.RegisterEmailCheckVo;
@@ -79,8 +80,10 @@ public class AuthController {
         if (policy == null || policy.getCode() != ResultCode.SUCCESS || policy.getData() == null) {
             throw new BizException(ResultCode.INTERNAL_ERROR, "注册策略暂不可用");
         }
-        if (Boolean.TRUE.equals(policy.getData().getAllowRegister())
-                && "INVITE_CODE".equals(policy.getData().getRegisterMode())) {
+        if (!Boolean.TRUE.equals(policy.getData().getAllowRegister())) {
+            throw new BizException(ResultCode.FORBIDDEN, policy.getData().getReason());
+        }
+        if (RegisterModeConstant.INVITE_CODE.equals(policy.getData().getRegisterMode())) {
             authService.registerWithInvite(request);
             return Result.success("注册申请提交成功，请等待审核", null);
         }

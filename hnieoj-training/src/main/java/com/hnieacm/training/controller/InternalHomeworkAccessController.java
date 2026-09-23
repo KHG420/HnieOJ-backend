@@ -7,13 +7,10 @@ import com.hnieacm.common.result.Result;
 import com.hnieacm.common.result.ResultCode;
 import com.hnieacm.training.constant.HomeworkStatusConstant;
 import com.hnieacm.training.entity.Homework;
-import com.hnieacm.training.entity.HomeworkClass;
 import com.hnieacm.training.entity.HomeworkProblem;
-import com.hnieacm.training.feign.HomeworkUserFeignClient;
-import com.hnieacm.training.mapper.HomeworkClassMapper;
 import com.hnieacm.training.mapper.HomeworkMapper;
 import com.hnieacm.training.mapper.HomeworkProblemMapper;
-import com.hnieacm.training.vo.HomeworkUserVo;
+import com.hnieacm.training.service.HomeworkClassAccessService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,8 +31,7 @@ import java.time.LocalDateTime;
 public class InternalHomeworkAccessController {
     private final HomeworkMapper homeworkMapper;
     private final HomeworkProblemMapper problemMapper;
-    private final HomeworkClassMapper homeworkClassMapper;
-    private final HomeworkUserFeignClient userClient;
+    private final HomeworkClassAccessService classAccess;
 
     @Value("${hnieoj.internal.token:}")
     private String internalToken;
@@ -59,17 +55,7 @@ public class InternalHomeworkAccessController {
                 .eq(HomeworkProblem::getProblemId, problemId)) == 0) {
             throw new BizException(ResultCode.FORBIDDEN, "题目不属于该作业");
         }
-        if (uid == null || uid.isBlank() || authorization == null || authorization.isBlank()) {
-            throw new BizException(ResultCode.FORBIDDEN, "无作业提交资格");
-        }
-        Result<HomeworkUserVo> user = userClient.getUserDetail(uid, authorization);
-        if (user == null || user.getCode() != ResultCode.SUCCESS || user.getData() == null
-                || !uid.equals(user.getData().getUid()) || user.getData().getClassId() == null
-                || homeworkClassMapper.selectCount(new LambdaQueryWrapper<HomeworkClass>()
-                        .eq(HomeworkClass::getHid, homeworkId)
-                        .eq(HomeworkClass::getClassId, user.getData().getClassId())) == 0) {
-            throw new BizException(ResultCode.FORBIDDEN, "无作业提交资格");
-        }
+        classAccess.requireAssigned(homeworkId, classAccess.currentClassId(uid, authorization));
         return Result.success(true);
     }
 }

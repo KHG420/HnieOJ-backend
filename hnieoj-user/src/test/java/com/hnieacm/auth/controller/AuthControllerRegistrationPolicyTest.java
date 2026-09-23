@@ -39,12 +39,30 @@ class AuthControllerRegistrationPolicyTest {
         SubmissionInternalFeignClient client = mock(SubmissionInternalFeignClient.class);
         RegisterRequest request = request();
         RegisterEmailCheckVo check = new RegisterEmailCheckVo();
+        check.setAllowRegister(true);
         check.setMatched(true);
         when(client.checkRegisterEmail(request.getEmail())).thenReturn(Result.success(check));
 
         new AuthController(authService, client).register(request);
 
         verify(authService).register(request);
+    }
+
+    @Test
+    void rejectsMatchedEmailWhenRegistrationIsDisabled() {
+        AuthService authService = mock(AuthService.class);
+        SubmissionInternalFeignClient client = mock(SubmissionInternalFeignClient.class);
+        RegisterRequest request = request();
+        RegisterEmailCheckVo check = new RegisterEmailCheckVo();
+        check.setAllowRegister(false);
+        check.setMatched(true);
+        check.setReason("系统暂未开放注册");
+        when(client.checkRegisterEmail(request.getEmail())).thenReturn(Result.success(check));
+
+        assertThatThrownBy(() -> new AuthController(authService, client).register(request))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("系统暂未开放注册");
+        verifyNoInteractions(authService);
     }
 
     @Test

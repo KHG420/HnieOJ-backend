@@ -564,6 +564,7 @@ CREATE TABLE `judge` (
   KEY `idx_judge_task_id` (`judge_task_id`),
   KEY `idx_uid_problem_id` (`uid`, `problem_id`),
   KEY `idx_cid` (`cid`),
+  KEY `idx_hid_status_create` (`hid`, `status`, `gmt_create`),
   KEY `idx_status` (`status`),
   KEY `idx_gmt_create` (`gmt_create`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='代码提交记录';

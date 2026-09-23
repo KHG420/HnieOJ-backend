@@ -35,9 +35,10 @@ mysql -uroot -p < deploy/mysql/添加测试数据.sql
 ```bash
 mysql -uroot -p hnieoj_user_db < deploy/mysql/migrations/20260923_invite_code.sql
 mysql -uroot -p hnieoj_user_db < deploy/mysql/migrations/20260923_user_favorite.sql
+mysql -uroot -p hnieoj_judge_db < deploy/mysql/migrations/20260923_judge_homework_index.sql
 ```
 
-邀请码和收藏接口依赖这两张新表；后端部署脚本不会自动执行数据库迁移。
+邀请码和收藏接口依赖两张新表，作业成绩单依赖新增的判题表索引；后端部署脚本不会自动执行数据库迁移。
 
 ## 3. Nacos
 

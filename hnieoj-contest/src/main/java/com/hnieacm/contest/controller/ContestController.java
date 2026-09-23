@@ -2,6 +2,7 @@ package com.hnieacm.contest.controller;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.hnieacm.common.dto.PageVo;
+import com.hnieacm.common.constant.RoleConstant;
 import com.hnieacm.common.result.Result;
 import com.hnieacm.contest.dto.ContestListQuery;
 import com.hnieacm.contest.service.ContestQueryService;
@@ -72,7 +73,8 @@ public class ContestController {
     @Operation(summary = "比赛实时榜单")
     @GetMapping("/{id}/scoreboard")
     public Result<List<ContestRankVo>> scoreboard(@PathVariable("id") @Min(1) Long contestId) {
-        return Result.success(contestRankService.standings(contestId));
+        boolean manager = StpUtil.hasRole(RoleConstant.ADMIN) || StpUtil.hasRole(RoleConstant.ROOT);
+        return Result.success(contestRankService.standings(contestId, StpUtil.getLoginIdAsString(), manager));
     }
 
     @Operation(summary = "获取比赛列表")
