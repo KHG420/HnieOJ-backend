@@ -349,13 +349,13 @@ class SaTokenConfigRouteRuleTest {
     }
 
     /**
-     * 从 gateway.yaml 中读取指定服务路由的 Path 谓词行。
+     * 从 hnieoj-gateway.yaml 中读取指定服务路由的 Path 谓词行。
      *
      * @param routeId 路由 id（如 hnieoj-problem）
      * @return Path 谓词行内容（去除首尾空白）
      */
     private static String readRoutePathPredicate(String routeId) throws Exception {
-        Path yaml = locateRepoFile("deploy/nacos/dev/DEFAULT_GROUP/gateway.yaml");
+        Path yaml = locateRepoFile("deploy/nacos/dev/DEFAULT_GROUP/hnieoj-gateway.yaml");
         List<String> lines = Files.readAllLines(yaml);
 
         int routeIndex = -1;

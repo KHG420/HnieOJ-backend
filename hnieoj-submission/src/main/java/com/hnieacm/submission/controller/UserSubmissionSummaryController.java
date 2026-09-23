@@ -15,6 +15,9 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
+ * Public OJ activity shown on user profile pages to any signed-in viewer.
+ * This endpoint exposes only aggregates and problem results already visible in the submission list.
+ *
  * @author HnieOJ contributors
  */
 @RestController
@@ -33,7 +36,7 @@ public class UserSubmissionSummaryController {
         List<UserProblemSummaryVo> problems = judgeMapper.listUserProblems(uid);
         UserSubmissionSummaryVo result = new UserSubmissionSummaryVo();
         result.setTotalSubmissions(judgeMapper.countUserSubmissions(uid));
-        result.setAcceptedProblems((int) problems.stream().filter(p -> Boolean.TRUE.equals(p.getAccepted())).count());
+        result.setAcceptedProblems(judgeMapper.countUserAcceptedProblems(uid));
         result.setProblems(problems);
         result.setDaily(judgeMapper.listUserDaily(uid, LocalDate.now().minusDays(364).atStartOfDay()));
         return Result.success(result);

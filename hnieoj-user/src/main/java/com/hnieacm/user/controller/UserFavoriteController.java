@@ -82,7 +82,7 @@ public class UserFavoriteController {
     }
 
     private void validate(String type, String targetId) {
-        if (!TYPES.contains(type) || targetId == null || targetId.isBlank() || targetId.length() > 64) {
+        if (type == null || !TYPES.contains(type) || targetId == null || targetId.isBlank() || targetId.length() > 64) {
             throw new BizException(ResultCode.BAD_REQUEST, "收藏参数不合法");
         }
     }

@@ -26,9 +26,11 @@ public class AdminSubmissionDashboardController {
     @GetMapping
     @SaCheckPermission(PermissionConstant.PROBLEM_UPDATE)
     public Result<AdminSubmissionDashboardVo> summary() {
+        LocalDate reportDate = LocalDate.now();
         AdminSubmissionDashboardVo result = new AdminSubmissionDashboardVo();
+        result.setReportDate(reportDate);
         result.setTotalSubmissions(judgeMapper.selectCount(null));
-        result.setDaily(judgeMapper.listDashboardDaily(LocalDate.now().minusDays(6).atStartOfDay()));
+        result.setDaily(judgeMapper.listDashboardDaily(reportDate.minusDays(6).atStartOfDay()));
         result.setStatuses(judgeMapper.listDashboardStatuses());
         result.setHotProblems(judgeMapper.listHotProblems());
         result.setLowActivityProblems(judgeMapper.listLowActivityProblems());

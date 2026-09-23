@@ -33,12 +33,30 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ContestRankService {
+    private static final long RATINGS_CACHE_NANOS = Duration.ofSeconds(10).toNanos();
     private final ContestMapper contestMapper;
     private final ContestProblemMapper contestProblemMapper;
     private final ScoreSubmissionFeignClient submissionClient;
+    private volatile RatingSnapshot ratingSnapshot;
 
     /** Ratings start at 1200; each finished contest moves 25% toward rank percentile performance (800–2000). */
     public List<ContestRatingVo> ratings() {
+        RatingSnapshot snapshot = ratingSnapshot;
+        if (snapshot != null && System.nanoTime() - snapshot.createdAtNanos() < RATINGS_CACHE_NANOS) {
+            return snapshot.rows();
+        }
+        synchronized (this) {
+            snapshot = ratingSnapshot;
+            if (snapshot != null && System.nanoTime() - snapshot.createdAtNanos() < RATINGS_CACHE_NANOS) {
+                return snapshot.rows();
+            }
+            List<ContestRatingVo> rows = List.copyOf(calculateRatings());
+            ratingSnapshot = new RatingSnapshot(rows, System.nanoTime());
+            return rows;
+        }
+    }
+
+    private List<ContestRatingVo> calculateRatings() {
         LocalDateTime now = LocalDateTime.now();
         List<Contest> finished = contestMapper.selectList(new LambdaQueryWrapper<Contest>()
                 .eq(Contest::getIsVisible, 1).eq(Contest::getOpenRank, 1)
@@ -77,6 +95,8 @@ public class ContestRankService {
         }
         return rows;
     }
+
+    private record RatingSnapshot(List<ContestRatingVo> rows, long createdAtNanos) { }
 
     public List<ContestRankVo> standings(long contestId) {
         Contest contest = contestMapper.selectById(contestId);

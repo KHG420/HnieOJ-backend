@@ -45,8 +45,11 @@ public interface JudgeMapper extends BaseMapper<Judge> {
      */
     @Select("SELECT uid, MAX(username) AS username, "
             + "COUNT(DISTINCT CASE WHEN status = 0 THEN problem_id END) AS solved, "
-            + "COUNT(DISTINCT CASE WHEN status = 0 AND gmt_create >= #{monthStart} THEN problem_id END) AS monthlySolved, "
-            + "COUNT(*) AS submissions FROM judge WHERE cid = 0 AND hid = 0 AND tid = 0 "
+            + "COUNT(DISTINCT CASE WHEN status = 0 AND gmt_create >= #{monthStart} AND NOT EXISTS ("
+            + "SELECT 1 FROM judge old WHERE old.uid = judge.uid AND old.problem_id = judge.problem_id "
+            + "AND old.status = 0 AND old.cid = 0 AND old.hid = 0 AND old.tid = 0 "
+            + "AND old.gmt_create < #{monthStart}) THEN problem_id END) AS monthlySolved, "
+            + "COUNT(CASE WHEN status >= 0 THEN 1 END) AS submissions FROM judge WHERE cid = 0 AND hid = 0 AND tid = 0 "
             + "GROUP BY uid ORDER BY solved DESC, submissions ASC, uid ASC LIMIT 100")
     List<UserSolveRankVo> listSolveRanks(@Param("monthStart") java.time.LocalDateTime monthStart);
 
@@ -64,7 +67,7 @@ public interface JudgeMapper extends BaseMapper<Judge> {
             + "SELECT 1 FROM judge old WHERE old.uid = j.uid AND old.problem_id = j.problem_id "
             + "AND old.status = 0 AND old.cid = 0 AND old.hid = 0 AND old.tid = 0 "
             + "AND old.gmt_create < #{monthStart}) THEN j.problem_id END) AS monthlySolved, "
-            + "COUNT(*) AS submissions FROM judge j WHERE j.cid = 0 AND j.hid = 0 AND j.tid = 0 "
+            + "COUNT(CASE WHEN j.status >= 0 THEN 1 END) AS submissions FROM judge j WHERE j.cid = 0 AND j.hid = 0 AND j.tid = 0 "
             + "AND j.gmt_create >= #{monthStart} GROUP BY j.uid "
             + "ORDER BY monthlySolved DESC, submissions ASC, uid ASC LIMIT 100")
     List<UserSolveRankVo> listMonthlySolveRanks(@Param("monthStart") java.time.LocalDateTime monthStart);
@@ -78,6 +81,15 @@ public interface JudgeMapper extends BaseMapper<Judge> {
             + "FROM judge WHERE uid = #{uid} AND cid = 0 AND hid = 0 AND tid = 0 "
             + "GROUP BY problem_id, problem_code ORDER BY problem_code LIMIT 1000")
     List<UserProblemSummaryVo> listUserProblems(@Param("uid") String uid);
+
+    /**
+     * Count accepted ordinary problems without the display list's 1,000-row limit.
+     * @param uid user identifier
+     * @return number of distinct accepted problems
+     */
+    @Select("SELECT COUNT(DISTINCT problem_id) FROM judge WHERE uid = #{uid} "
+            + "AND cid = 0 AND hid = 0 AND tid = 0 AND status = 0")
+    int countUserAcceptedProblems(@Param("uid") String uid);
 
     /**
      * List a user's daily submission totals.

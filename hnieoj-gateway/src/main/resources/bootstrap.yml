@@ -1,6 +1,6 @@
 spring:
   application:
-    name: gateway
+    name: hnieoj-gateway
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
   cloud:

@@ -124,7 +124,7 @@ bash deploy/scripts/deploy-dev.sh gojudge-ps
 查看日志：
 
 ```bash
-bash deploy/scripts/deploy-dev.sh logs gateway
+bash deploy/scripts/deploy-dev.sh logs hnieoj-gateway
 bash deploy/scripts/deploy-dev.sh logs hnieoj-submission
 bash deploy/scripts/deploy-dev.sh gojudge-logs
 ```

@@ -10,6 +10,7 @@ import java.util.List;
  */
 @Data
 public class AdminSubmissionDashboardVo {
+    private LocalDate reportDate;
     private long totalSubmissions;
     private List<Daily> daily;
     private List<Status> statuses;

@@ -7,15 +7,20 @@ import com.hnieacm.common.result.Result;
 import com.hnieacm.common.result.ResultCode;
 import com.hnieacm.training.constant.HomeworkStatusConstant;
 import com.hnieacm.training.entity.Homework;
+import com.hnieacm.training.entity.HomeworkClass;
 import com.hnieacm.training.entity.HomeworkProblem;
+import com.hnieacm.training.feign.HomeworkUserFeignClient;
+import com.hnieacm.training.mapper.HomeworkClassMapper;
 import com.hnieacm.training.mapper.HomeworkMapper;
 import com.hnieacm.training.mapper.HomeworkProblemMapper;
+import com.hnieacm.training.vo.HomeworkUserVo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
@@ -29,12 +34,16 @@ import java.time.LocalDateTime;
 public class InternalHomeworkAccessController {
     private final HomeworkMapper homeworkMapper;
     private final HomeworkProblemMapper problemMapper;
+    private final HomeworkClassMapper homeworkClassMapper;
+    private final HomeworkUserFeignClient userClient;
 
     @Value("${hnieoj.internal.token:}")
     private String internalToken;
 
     @GetMapping("/{homeworkId}/problems/{problemId}/access")
     public Result<Boolean> check(@PathVariable Long homeworkId, @PathVariable Long problemId,
+                                 @RequestParam String uid,
+                                 @RequestHeader(value = HeaderConstant.AUTHORIZATION, required = false) String authorization,
                                  @RequestHeader(value = HeaderConstant.INTERNAL_TOKEN, required = false) String token) {
         if (internalToken == null || internalToken.isBlank() || !internalToken.equals(token)) {
             throw new BizException(ResultCode.FORBIDDEN, "禁止访问内部接口");
@@ -49,6 +58,17 @@ public class InternalHomeworkAccessController {
                 .eq(HomeworkProblem::getHid, homeworkId)
                 .eq(HomeworkProblem::getProblemId, problemId)) == 0) {
             throw new BizException(ResultCode.FORBIDDEN, "题目不属于该作业");
+        }
+        if (uid == null || uid.isBlank() || authorization == null || authorization.isBlank()) {
+            throw new BizException(ResultCode.FORBIDDEN, "无作业提交资格");
+        }
+        Result<HomeworkUserVo> user = userClient.getUserDetail(uid, authorization);
+        if (user == null || user.getCode() != ResultCode.SUCCESS || user.getData() == null
+                || !uid.equals(user.getData().getUid()) || user.getData().getClassId() == null
+                || homeworkClassMapper.selectCount(new LambdaQueryWrapper<HomeworkClass>()
+                        .eq(HomeworkClass::getHid, homeworkId)
+                        .eq(HomeworkClass::getClassId, user.getData().getClassId())) == 0) {
+            throw new BizException(ResultCode.FORBIDDEN, "无作业提交资格");
         }
         return Result.success(true);
     }

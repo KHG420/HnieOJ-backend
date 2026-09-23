@@ -9,6 +9,7 @@ import com.hnieacm.contest.entity.ContestRegister;
 import com.hnieacm.contest.mapper.ContestMapper;
 import com.hnieacm.contest.mapper.ContestRegisterMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -47,6 +48,10 @@ public class ContestRegistrationService {
         registration.setUid(uid);
         registration.setStatus(1);
         registration.setType("user");
-        registerMapper.insert(registration);
+        try {
+            registerMapper.insert(registration);
+        } catch (DuplicateKeyException ignored) {
+            // The unique (cid, uid) key makes concurrent registration idempotent.
+        }
     }
 }

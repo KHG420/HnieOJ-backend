@@ -111,7 +111,13 @@ public class SubmissionServiceImpl implements SubmissionService {
         }
         ensureProblemSubmitAllowed(problem, cid, uid);
         if (hid > 0) {
-            Result<Boolean> access = homeworkAccessFeignClient.checkAccess(hid, problem.getId());
+            Result<Boolean> access;
+            try {
+                access = homeworkAccessFeignClient.checkAccess(hid, problem.getId(), uid);
+            } catch (RuntimeException ex) {
+                log.warn("Homework access check failed, homeworkId: {}, problemId: {}", hid, problem.getId(), ex);
+                throw new BizException(ResultCode.FORBIDDEN, "无作业提交资格");
+            }
             if (access == null || access.getCode() != ResultCode.SUCCESS || !Boolean.TRUE.equals(access.getData())) {
                 throw new BizException(ResultCode.FORBIDDEN, "无作业提交资格");
             }
@@ -504,7 +510,13 @@ public class SubmissionServiceImpl implements SubmissionService {
             throw new BizException(ResultCode.FORBIDDEN, "该题目当前不可提交");
         }
         if (contestId > 0) {
-            Result<Boolean> access = contestAccessFeignClient.checkProblemAccess(contestId, problem.getId(), uid);
+            Result<Boolean> access;
+            try {
+                access = contestAccessFeignClient.checkProblemAccess(contestId, problem.getId(), uid);
+            } catch (RuntimeException ex) {
+                log.warn("Contest access check failed, contestId: {}, problemId: {}", contestId, problem.getId(), ex);
+                throw new BizException(ResultCode.FORBIDDEN, "无权向该比赛提交题目");
+            }
             if (access == null || access.getCode() != ResultCode.SUCCESS || !Boolean.TRUE.equals(access.getData())) {
                 throw new BizException(ResultCode.FORBIDDEN, "无权向该比赛提交题目");
             }
