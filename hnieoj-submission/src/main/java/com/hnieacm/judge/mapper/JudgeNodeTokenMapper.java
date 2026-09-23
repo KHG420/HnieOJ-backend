@@ -54,6 +54,7 @@ public interface JudgeNodeTokenMapper extends BaseMapper<JudgeNodeToken> {
      *
      * @param nodeId       节点 registryID
      * @param sessionEpoch 连接持有的会话纪元
+     * @param now          与在线判定一致的应用时间
      * @return 受影响行数，0 表示旧会话已被接管
      */
     @Update("UPDATE judge_node_token SET last_heartbeat_time = #{now}, last_seen_at = #{now} "
