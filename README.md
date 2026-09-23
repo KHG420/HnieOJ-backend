@@ -89,6 +89,8 @@ HnieOJ-backend/
 - 二开 go-judge（可通过部署脚本启动）
 - 本地文件系统目录 `/data/oj/problems`（题面、图片、测试数据）
 
+MySQL 会话时区应与后端默认时区 `Asia/Shanghai` 一致（例如 `+08:00`）。若 MySQL 使用 UTC，数据库 `NOW()`/`CURRENT_TIMESTAMP` 写入的时间与 Java 的 `LocalDateTime.now()` 相差 8 小时，提交时间显示和基于时间的判断会异常；联调前可用 `SELECT @@session.time_zone, NOW();` 核对。
+
 ### 配置Nacos
 
 详细步骤见 [Nacos Configs](deploy/nacos/README.md)
@@ -229,6 +231,5 @@ bash deploy/scripts/deploy-dev.sh gojudge-up
 ## 许可证
 
 本项目使用 [MIT License](./LICENSE) 开源。
-
 
 
